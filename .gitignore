@@ -1,3 +1,20 @@
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Virtual env
+.venv/
+venv/
+.env/
+
+# KLEE + LLVM artifacts
+klee_runs/
+klee-out-*/
+*.ktest
+*.bc
+*.ll
+*.kquery
+*.cov
+*.gcda
+*.gcno
