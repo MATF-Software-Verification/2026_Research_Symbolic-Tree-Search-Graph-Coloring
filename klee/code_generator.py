@@ -9,52 +9,30 @@ class CodeGenerator:
 
         self.c_code = self.generate_code()
 
-    def generate_code(self):
-        lines = []
-
-        lines.append("#include <klee/klee.h>")
-        lines.append("#include <stdio.h>")
-        lines.append("")
-
-        lines.append(f"#define NODES {self.num_nodes}")
-        lines.append(f"#define COLORS {self.num_colors}")
-        lines.append(f"#define EDGES {self.num_edges}")
-
-        lines.append("")
-        lines.append("int main() {")
-
-        lines.append("    int color[NODES];")
-        lines.append("    int edges[EDGES][2] = {")
-
-        for i in range(self.num_edges):
-            if i == self.num_edges - 1:
-                lines.append(f"        {{{self.edges[i][0]}, {self.edges[i][1]}}}")
-            else:
-                lines.append(f"        {{{self.edges[i][0]}, {self.edges[i][1]}}},")
-                
-        lines.append("    };")
-        lines.append("")
-
-        lines.append("    // Colors")
-        lines.append("    for (int i = 0; i < NODES; i++) {")
-        lines.append("        char name[16];")
-        lines.append("        sprintf(name, \"color_%d\", i);")
-        lines.append("        klee_make_symbolic(&color[i], sizeof(int), name);")
-        lines.append("        klee_assume(color[i] >= 0 && color[i] < COLORS);")
-        lines.append("    }")
-        lines.append("")
-
-        lines.append("    // Edge constraints")
-        lines.append("    for(int i = 0; i < EDGES; i++) {")
-        lines.append("        int u = edges[i][0];")
-        lines.append("        int v = edges[i][1];")
-        lines.append("        klee_assume(color[u] != color[v]);")
-        lines.append("     }")
-
-        lines.append("")
-        lines.append("    return 0;")
-        lines.append("}")
-
+    def generate_code(self): 
+        lines = [] 
+        # Headers 
+        lines.append("#include <klee/klee.h>") 
+        lines.append("") 
+        lines.append("int main() {") 
+        lines.append("") 
+        # Declare color array 
+        lines.append(f"    int color[{self.num_nodes}];") 
+        lines.append("") 
+        # Make colors symbolic and constrain range 
+        for i in range(self.num_nodes): 
+            lines.append(f"    klee_make_symbolic(&color[{i}], sizeof(int), \"color_{i}\");" ) 
+            lines.append(f"    klee_assume(color[{i}] >= 0 && color[{i}] < {self.num_colors});" ) 
+            lines.append("") 
+        
+        # Edge constraints 
+        lines.append("    // Edge constraints") 
+        for u, v in self.edges: 
+            lines.append(f"    klee_assume(color[{u}] != color[{v}]);" ) 
+        lines.append("") 
+        lines.append("    return 0;") 
+        lines.append("}") 
+        
         return "\n".join(lines)
 
     def save_to_file(self, parent = None):
