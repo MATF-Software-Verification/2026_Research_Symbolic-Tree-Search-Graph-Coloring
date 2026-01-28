@@ -9,36 +9,62 @@ class CodeGenerator:
 
         self.c_code = self.generate_code()
 
-    def generate_code(self): 
-        lines = [] 
-        # Headers 
-        lines.append("#include <klee/klee.h>") 
-        lines.append("") 
-        lines.append("int main() {") 
-        lines.append("") 
-        # Declare color array 
-        lines.append(f"    int color[{self.num_nodes}];") 
-        lines.append("") 
-        # Make the whole array symbolic (single object: 'color')
-        lines.append(f'    klee_make_symbolic(color, sizeof(color), "color");')
+    def generate_code(self):
+        lines = []
+
+        lines.append("#include <klee/klee.h>")
         lines.append("")
-        # Range constraints
-        for i in range(self.num_nodes):
-            lines.append(f"    klee_assume(color[{i}] >= 0 && color[{i}] < {self.num_colors});")
+
+        lines.append(f"#define NODES {self.num_nodes}")
+        lines.append(f"#define COLORS {self.num_colors}")
+        lines.append(f"#define EDGES {self.num_edges}")
         lines.append("")
-        # Edge constraints 
-        lines.append("    // Edge constraints") 
-        for u, v in self.edges: 
-            lines.append(f"    klee_assume(color[{u}] != color[{v}]);" ) 
-        lines.append("") 
-        # Force values to be observed (prevents empty .ktest on some builds)
+
+        lines.append("int main() {")
+        lines.append("")
+
+        lines.append("    int color[NODES];")
+        lines.append("")
+
+        lines.append("    int edges[EDGES][2] = {")
+        for i, (u, v) in enumerate(self.edges):
+            comma = "," if i < self.num_edges - 1 else ""
+            lines.append(f"        {{{u}, {v}}}{comma}")
+        lines.append("    };")
+        lines.append("")
+
+        lines.append('    klee_make_symbolic(color, sizeof(color), "color");')
+        lines.append("")
+
+        # Range constraints (C for loop)
+        lines.append("    // Range constraints")
+        lines.append("    for (int i = 0; i < NODES; i++) {")
+        lines.append("        klee_assume(color[i] >= 0);")
+        lines.append("        klee_assume(color[i] < COLORS);")
+        lines.append("    }")
+        lines.append("")
+
+        # Edge constraints
+        lines.append("    // Edge constraints")
+        lines.append("    for (int i = 0; i < EDGES; i++) {")
+        lines.append("        int u = edges[i][0];")
+        lines.append("        int v = edges[i][1];")
+        lines.append("        klee_assume(color[u] != color[v]);")
+        lines.append("    }")
+        lines.append("")
+
+        # Force observation
         lines.append("    // Force KLEE to record concrete assignments")
-        for i in range(self.num_nodes):
-            lines.append(f'    klee_print_expr("color[{i}]", color[{i}]);')
-        lines.append("    return 0;") 
-        lines.append("}") 
-        
+        lines.append("    for (int i = 0; i < NODES; i++) {")
+        lines.append('        klee_print_expr("color[i]", color[i]);')
+        lines.append("    }")
+        lines.append("")
+
+        lines.append("    return 0;")
+        lines.append("}")
+
         return "\n".join(lines)
+
 
     def save_to_file(self, parent = None):
         file_path, _ = QFileDialog.getSaveFileName(

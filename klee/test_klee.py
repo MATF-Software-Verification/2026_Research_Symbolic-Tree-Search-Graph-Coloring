@@ -9,8 +9,8 @@ from ktest_parser import KTestParser
 
 def main():
     # ===== KONFIGURACIJA =====
-    NUM_NODES = 3
-    EDGES = [(0, 1), (1, 2), (0, 2)]  # trougao
+    NUM_NODES = 5
+    EDGES = [(0, 1), (0, 3), (1, 2), (2, 3), (1, 4), (2, 4), (3, 4)]
     NUM_COLORS = 3
     
     print("=" * 50)
@@ -67,7 +67,7 @@ def main():
     
     if colorings:
         for i, coloring in enumerate(colorings):
-            print(f"  {i+1}. Čvor 0={coloring[0]}, Čvor 1={coloring[1]}, Čvor 2={coloring[2]}")
+            print(f"  {i+1}. Čvor 0={coloring[0]}, Čvor 1={coloring[1]}, Čvor 2={coloring[2]}, Čvor 3={coloring[3]}, Čvor 4={coloring[4]}")
         
         # Verifikacija
         print("\n[5] Verifikacija...")
