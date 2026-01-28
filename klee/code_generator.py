@@ -19,17 +19,22 @@ class CodeGenerator:
         # Declare color array 
         lines.append(f"    int color[{self.num_nodes}];") 
         lines.append("") 
-        # Make colors symbolic and constrain range 
-        for i in range(self.num_nodes): 
-            lines.append(f"    klee_make_symbolic(&color[{i}], sizeof(int), \"color_{i}\");" ) 
-            lines.append(f"    klee_assume(color[{i}] >= 0 && color[{i}] < {self.num_colors});" ) 
-            lines.append("") 
-        
+        # Make the whole array symbolic (single object: 'color')
+        lines.append(f'    klee_make_symbolic(color, sizeof(color), "color");')
+        lines.append("")
+        # Range constraints
+        for i in range(self.num_nodes):
+            lines.append(f"    klee_assume(color[{i}] >= 0 && color[{i}] < {self.num_colors});")
+        lines.append("")
         # Edge constraints 
         lines.append("    // Edge constraints") 
         for u, v in self.edges: 
             lines.append(f"    klee_assume(color[{u}] != color[{v}]);" ) 
         lines.append("") 
+        # Force values to be observed (prevents empty .ktest on some builds)
+        lines.append("    // Force KLEE to record concrete assignments")
+        for i in range(self.num_nodes):
+            lines.append(f'    klee_print_expr("color[{i}]", color[{i}]);')
         lines.append("    return 0;") 
         lines.append("}") 
         

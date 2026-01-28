@@ -32,8 +32,8 @@ class KleeRunner:
 
     def _detect_clang(self) -> str:
         """
-        Pronađi KLEE-kompatibilan clang za trenutni OS.
-        KLEE obično zahteva specifičnu LLVM verziju (14, 15, ili 16).
+        Find a KLEE-compatible clang for the current OS.
+        KLEE typically requires a specific LLVM version (14, 15, or 16).
         """
         system = platform.system()
         
@@ -54,15 +54,15 @@ class KleeRunner:
             ]
         elif system == "Linux":
             candidates = [
-                # Specifične verzije (Ubuntu/Debian)
+                # Versioned clang binaries (Ubuntu/Debian)
                 "/usr/bin/clang-16",
                 "/usr/bin/clang-15",
                 "/usr/bin/clang-14",
                 "/usr/bin/clang-13",
-                # KLEE build lokacije
+                # Common KLEE/LLVM install locations
                 "/usr/local/bin/clang",
                 "/opt/llvm/bin/clang",
-                # Snap KLEE dolazi sa svojim LLVM
+                # Snap KLEE may ship its own LLVM
                 "/snap/klee/current/usr/local/bin/clang",
             ]
         elif system == "Windows":
@@ -71,23 +71,23 @@ class KleeRunner:
                 "clang",
             ]
 
-        # Probaj sve kandidate
+        # Try all candidates
         for clang in candidates:
             if Path(clang).exists():
                 return clang
         
-        # Fallback: sistemski clang
+        # Fallback: system clang on PATH
         system_clang = shutil.which("clang")
         if system_clang:
             if self.verbose:
-                print(f"[WARN] Koristim sistemski clang: {system_clang}")
-                print("[WARN] Može doći do LLVM version mismatch!")
+                print(f"[WARN] Falling back to system clang: {system_clang}")
+                print("[WARN] LLVM version mismatch may occur!")
             return system_clang
         
         raise KleeRunnerError(
-            "Nije pronađen KLEE-kompatibilan clang.\n"
+            "No KLEE-compatible clang was found.\n"
             f"OS: {system}\n"
-            "Instaliraj:\n"
+            "Install:\n"
             "  macOS:  brew install llvm@16\n"
             "  Ubuntu: sudo apt install clang-16\n"
         )
@@ -132,7 +132,7 @@ class KleeRunner:
             klee_h = Path(c) / "klee" / "klee.h"
             if klee_h.exists():
                 if self.verbose:
-                    print(f"[INFO] Pronađen klee.h: {klee_h}")
+                    print(f"[INFO] Found klee.h at: {klee_h}")
                 return c
             
         # Auto-detect which klee
@@ -144,15 +144,15 @@ class KleeRunner:
                 return str(possible_include)
         
         raise KleeRunnerError(
-            "Ne mogu da nađem klee/klee.h\n"
+            "Unable to locate klee/klee.h\n"
             f"OS: {system}\n"
-            "Proveri KLEE instalaciju."
+            "Please check your KLEE installation."
         )
 
     def run(self, c_file: str, timeout: int = 30, klee_args: Optional[List[str]] = None) -> KleeRunResult:
         c_path = Path(c_file).resolve()
         if not c_path.exists():
-            raise KleeRunnerError(f"Ne postoji C fajl: {c_path}")
+            raise KleeRunnerError(f"C file does not exist: {c_path}")
 
         # 1) create run dir
         work_dir = self.work_root / "latest"
@@ -170,7 +170,7 @@ class KleeRunner:
         clang_cmd = [self.clang_path, "-I", klee_include, "-O0", "-g", "-emit-llvm", "-c", local_c.name, "-o", bc_file.name]
         proc = self._run(clang_cmd, cwd=work_dir, timeout=timeout)
         if proc.returncode != 0 or not bc_file.exists():
-            raise KleeRunnerError(f"clang nije uspeo:\n{proc.stderr}")
+            raise KleeRunnerError(f"Clang compilation failed:\n{proc.stderr}")
 
         # 4) run klee
         args = []
@@ -180,12 +180,12 @@ class KleeRunner:
         klee_cmd = ["klee"] + args + [bc_file.name]
         proc2 = self._run(klee_cmd, cwd=work_dir, timeout=timeout)
         if proc2.returncode != 0:
-            raise KleeRunnerError(f"KLEE nije uspeo:\n{proc2.stderr}")
+            raise KleeRunnerError(f"KLEE execution failed:\n{proc2.stderr}")
 
         # 5) locate klee-out-*
         outs = sorted(work_dir.glob("klee-out-*"), key=lambda p: p.stat().st_mtime)
         if not outs:
-            raise KleeRunnerError("Nema klee-out-* direktorijuma. KLEE nije generisao izlaz.")
+            raise KleeRunnerError("No klee-out-* directory found. KLEE produced no output.")
         klee_out = outs[-1]
 
         ktests = sorted(klee_out.glob("*.ktest"))
