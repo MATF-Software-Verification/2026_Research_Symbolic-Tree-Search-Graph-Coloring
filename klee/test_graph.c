@@ -3,6 +3,7 @@
 #define NODES 5
 #define COLORS 3
 #define EDGES 6
+#define BLOCKED 18
 
 int main() {
 
@@ -33,24 +34,37 @@ int main() {
     }
 
     // Block previously found colorings
-    klee_assume(!(color[0] == 1 && color[1] == 2 && color[2] == 1 && color[3] == 0 && color[4] == 0));
-    klee_assume(!(color[0] == 2 && color[1] == 1 && color[2] == 2 && color[3] == 0 && color[4] == 0));
-    klee_assume(!(color[0] == 1 && color[1] == 0 && color[2] == 2 && color[3] == 0 && color[4] == 1));
-    klee_assume(!(color[0] == 0 && color[1] == 2 && color[2] == 0 && color[3] == 1 && color[4] == 1));
-    klee_assume(!(color[0] == 1 && color[1] == 0 && color[2] == 1 && color[3] == 0 && color[4] == 2));
-    klee_assume(!(color[0] == 0 && color[1] == 1 && color[2] == 0 && color[3] == 1 && color[4] == 2));
-    klee_assume(!(color[0] == 1 && color[1] == 0 && color[2] == 1 && color[3] == 2 && color[4] == 2));
-    klee_assume(!(color[0] == 1 && color[1] == 2 && color[2] == 1 && color[3] == 2 && color[4] == 0));
-    klee_assume(!(color[0] == 1 && color[1] == 2 && color[2] == 0 && color[3] == 2 && color[4] == 1));
-    klee_assume(!(color[0] == 2 && color[1] == 0 && color[2] == 2 && color[3] == 0 && color[4] == 1));
-    klee_assume(!(color[0] == 0 && color[1] == 1 && color[2] == 2 && color[3] == 1 && color[4] == 0));
-    klee_assume(!(color[0] == 2 && color[1] == 0 && color[2] == 1 && color[3] == 0 && color[4] == 2));
-    klee_assume(!(color[0] == 0 && color[1] == 1 && color[2] == 0 && color[3] == 2 && color[4] == 2));
-    klee_assume(!(color[0] == 2 && color[1] == 0 && color[2] == 2 && color[3] == 1 && color[4] == 1));
-    klee_assume(!(color[0] == 0 && color[1] == 2 && color[2] == 1 && color[3] == 2 && color[4] == 0));
-    klee_assume(!(color[0] == 0 && color[1] == 2 && color[2] == 0 && color[3] == 2 && color[4] == 1));
-    klee_assume(!(color[0] == 2 && color[1] == 1 && color[2] == 0 && color[3] == 1 && color[4] == 2));
-    klee_assume(!(color[0] == 2 && color[1] == 1 && color[2] == 2 && color[3] == 1 && color[4] == 0));
+    int blocked[BLOCKED][NODES] = {
+        {1, 2, 1, 0, 0},
+        {2, 1, 2, 0, 0},
+        {0, 2, 0, 1, 1},
+        {1, 0, 2, 0, 1},
+        {0, 1, 0, 1, 2},
+        {1, 0, 1, 0, 2},
+        {2, 0, 2, 0, 1},
+        {1, 0, 1, 2, 2},
+        {2, 0, 1, 0, 2},
+        {1, 2, 1, 2, 0},
+        {1, 2, 0, 2, 1},
+        {2, 0, 2, 1, 1},
+        {0, 1, 2, 1, 0},
+        {0, 1, 0, 2, 2},
+        {2, 1, 0, 1, 2},
+        {2, 1, 2, 1, 0},
+        {0, 2, 0, 2, 1},
+        {0, 2, 1, 2, 0}
+    };
+
+    for (int b = 0; b < BLOCKED; b++) {
+        int same = 1;
+        for (int i = 0; i < NODES; i++) {
+            if (color[i] != blocked[b][i]) {
+              same = 0;
+              break;
+             }
+        }
+        klee_assume(!same);
+    }
 
     // Force KLEE to record concrete assignments
     for (int i = 0; i < NODES; i++) {

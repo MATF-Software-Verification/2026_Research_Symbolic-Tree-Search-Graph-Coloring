@@ -11,7 +11,7 @@ def main():
     NUM_NODES = 5
     EDGES = [(0, 1), (1, 4), (1, 2), (4, 2), (0, 3), (2, 3)]
     NUM_COLORS = 3
-    TIMEOUT = 1
+    TIMEOUT = 10
 
     print("=" * 60)
     print("INKREMENTALNO BOJENJE GRAFA (KLEE)")

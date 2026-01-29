@@ -19,6 +19,7 @@ class CodeGenerator:
         lines.append(f"#define NODES {self.num_nodes}")
         lines.append(f"#define COLORS {self.num_colors}")
         lines.append(f"#define EDGES {self.num_edges}")
+        lines.append(f"#define BLOCKED {len(self.blocked)}")
         lines.append("")
 
         lines.append("int main() {")
@@ -57,15 +58,25 @@ class CodeGenerator:
         # Block previous colorings
         if self.blocked:
             lines.append("    // Block previously found colorings")
-            for coloring in self.blocked:
-                conds = [
-                    f"color[{i}] == {c}"
-                    for i, c in enumerate(coloring)
-                ]
-                joined = " && ".join(conds)
-                lines.append(f"    klee_assume(!({joined}));")
+            lines.append("    int blocked[BLOCKED][NODES] = {")
+            for i, coloring in enumerate(self.blocked):
+                comma = "," if i < len(self.blocked) - 1 else ""
+                values = ", ".join(str(c) for c in coloring)
+                lines.append(f"        {{{values}}}{comma}")
+            lines.append("    };")
             lines.append("")
 
+            lines.append("    for (int b = 0; b < BLOCKED; b++) {")
+            lines.append("        int same = 1;")
+            lines.append("        for (int i = 0; i < NODES; i++) {")
+            lines.append("            if (color[i] != blocked[b][i]) {")
+            lines.append("              same = 0;")
+            lines.append("              break;")
+            lines.append("             }")
+            lines.append("        }")
+            lines.append("        klee_assume(!same);")
+            lines.append("    }")
+            lines.append("")
 
         # Force observation
         lines.append("    // Force KLEE to record concrete assignments")
