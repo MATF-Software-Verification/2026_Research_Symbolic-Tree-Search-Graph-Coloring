@@ -1,11 +1,12 @@
 from PyQt5.QtWidgets import QFileDialog
 
 class CodeGenerator:
-    def __init__(self, num_nodes = 0, edges = [], num_colors = 0):
+    def __init__(self, num_nodes = 0, edges = [], num_colors = 0, blocked = None):
         self.num_nodes = num_nodes
         self.edges = edges
         self.num_edges = len(edges)
         self.num_colors = num_colors
+        self.blocked = blocked or []
 
         self.c_code = self.generate_code()
 
@@ -52,6 +53,19 @@ class CodeGenerator:
         lines.append("        klee_assume(color[u] != color[v]);")
         lines.append("    }")
         lines.append("")
+
+        # Block previous colorings
+        if self.blocked:
+            lines.append("    // Block previously found colorings")
+            for coloring in self.blocked:
+                conds = [
+                    f"color[{i}] == {c}"
+                    for i, c in enumerate(coloring)
+                ]
+                joined = " && ".join(conds)
+                lines.append(f"    klee_assume(!({joined}));")
+            lines.append("")
+
 
         # Force observation
         lines.append("    // Force KLEE to record concrete assignments")
