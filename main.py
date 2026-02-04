@@ -1,19 +1,22 @@
 import sys
 import json
-from PyQt5.QtWidgets import QApplication, QWidget
-from klee.code_generator import CodeGenerator
-
-class Application(QWidget):
-    def __init__(self):
-        super().__init__()
-        
-        code_generator = CodeGenerator(num_nodes = 3, edges = [(0, 1), (0, 2)], num_colors = 2)
-        print(code_generator.c_code)
-        code_generator.save_to_file()
-
-        self.show()
+from PyQt5.QtWidgets import QApplication
+from PyQt5.QtCore import Qt
+from gui.main_window import MainWindow
 
 if __name__ == '__main__':
+    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
+    
+    # Create application
     app = QApplication(sys.argv)
-    window = Application()
+    app.setStyle("Fusion")
+    app.setApplicationName("KLEE Graph Coloring")
+    app.setOrganizationName("KLEE Tools")
+    
+    # Create and show main window
+    window = MainWindow()
+    window.show()
+    
+    # Run event loop
     sys.exit(app.exec_())

@@ -18,3 +18,5 @@ klee-out-*/
 *.cov
 *.gcda
 *.gcno
+
+.DS_Store
