@@ -17,6 +17,7 @@ from .dialogs import CodeViewerDialog
 from .graph_scene import GraphScene
 from .graph_view import GraphView
 from models.coloring import Styles, Fonts, Dimensions
+from klee.code_generator import CodeGenerator
 
 
 class MainWindow(QMainWindow):
@@ -33,6 +34,9 @@ class MainWindow(QMainWindow):
         
         # Icons directory (relative to this file)
         self._icons_dir = Path(__file__).parent.parent / "icons"
+
+        # Generated C code - supplied to KLEE
+        self._generated_code: Optional[str] = None
 
         # Store results
         self._colorings: List[List[int]] = []
@@ -305,10 +309,12 @@ class MainWindow(QMainWindow):
     def _undo(self):
         """Undo last action."""
         self.graph_scene.undo()
+        self._generated_code = None
         
     def _redo(self):
         """Redo last undone action."""
         self.graph_scene.redo()
+        self._generated_code = None
         
     def _update_undo_redo_state(self):
         """Update undo/redo button states."""
@@ -324,6 +330,7 @@ class MainWindow(QMainWindow):
         self.graph_scene.clear_graph()
         self._colorings.clear()
         self._update_results_display()
+        self._generated_code = None
         self.statusBar().showMessage("Graph cleared")
                 
     def _on_graph_changed(self):
@@ -339,9 +346,6 @@ class MainWindow(QMainWindow):
     
     def _generate_code(self) -> str:
         """Generate KLEE C code for current graph."""
-        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        from klee.code_generator import CodeGenerator
-        
         generator = CodeGenerator(
             num_nodes=self.graph_scene.node_count,
             edges=self.graph_scene.get_edges_as_tuples(),
@@ -359,9 +363,10 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "No Edges", "Please add some edges to the graph.")
             return
         
-        code = self._generate_code()
-        
-        dialog = CodeViewerDialog(code, parent=self)
+        if self._generated_code is None:
+            self._generated_code = self._generate_code()
+                
+        dialog = CodeViewerDialog(self._generated_code, parent=self)
         dialog.exec_()
     
     # KLEE Execution
@@ -437,6 +442,8 @@ class MainWindow(QMainWindow):
                 num_colors=num_colors,
                 blocked=blocked
             )
+
+            self._generated_code = generator.c_code  # Store for potential display
             
             # Save to temp file
             with tempfile.NamedTemporaryFile(mode='w', suffix='.c', delete=False) as f:
