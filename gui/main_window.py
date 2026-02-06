@@ -13,6 +13,7 @@ from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QIcon
 
 from models.graph import Tool
+from .dialogs import CodeViewerDialog
 from .graph_scene import GraphScene
 from .graph_view import GraphView
 from models.coloring import Styles, Fonts, Dimensions
@@ -347,10 +348,21 @@ class MainWindow(QMainWindow):
             num_colors=self._colors_spin.value()
         )
         return generator.c_code
-
-    # TODO  
+  
     def _show_code(self):
-        pass
+        """Display the generated KLEE C code in console."""
+        if self.graph_scene.node_count == 0:
+            QMessageBox.warning(self, "No Graph", "Please create a graph first.")
+            return
+            
+        if self.graph_scene.edge_count == 0:
+            QMessageBox.warning(self, "No Edges", "Please add some edges to the graph.")
+            return
+        
+        code = self._generate_code()
+        
+        dialog = CodeViewerDialog(code, parent=self)
+        dialog.exec_()
     
     # KLEE Execution
     def _run_klee(self):
