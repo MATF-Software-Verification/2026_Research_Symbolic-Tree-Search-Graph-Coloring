@@ -16,6 +16,7 @@ from models.graph import Tool
 from .dialogs import CodeViewerDialog
 from .graph_scene import GraphScene
 from .graph_view import GraphView
+from .tree_view import SearchTreeWidget
 from models.coloring import Styles, Fonts, Dimensions
 from klee.code_generator import CodeGenerator
 
@@ -230,8 +231,12 @@ class MainWindow(QMainWindow):
         title.setStyleSheet(Styles.label_title())
         layout.addWidget(title)
         
-        # TODO: Tree view
-        
+        self.tree_view = SearchTreeWidget()
+        self.tree_view.setMinimumSize(
+            Dimensions.MIN_CANVAS_WIDTH,
+            Dimensions.MIN_CANVAS_HEIGHT
+        )
+        layout.addWidget(self.tree_view)
         
         return panel
         
@@ -417,7 +422,14 @@ class MainWindow(QMainWindow):
         num_nodes = self.graph_scene.node_count
         edges = self.graph_scene.get_edges_as_tuples()
         num_colors = self._colors_spin.value()
-        
+
+        # ===== DRAW SEARCH TREE =====
+        depth = max(0, num_nodes - 1)
+        k = max(1, num_colors)
+
+        if hasattr(self, "tree_view") and self.tree_view is not None:
+            self.tree_view.build_full_tree(depth=depth, k=k)
+
         # ===== TERMINAL OUTPUT =====
         print("\n" + "=" * 60)
         print("KLEE GRAPH COLORING")
