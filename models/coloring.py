@@ -20,6 +20,19 @@ COLORING_PALETTE = [
     QColor("#D81B60"),  # Pink
 ]
 
+COLOR_NAMES = [
+    "RED",        # 0
+    "BLUE",       # 1
+    "GREEN",      # 2
+    "ORANGE",     # 3
+    "PURPLE",     # 4
+    "CYAN",       # 5
+    "AMBER",      # 6
+    "BROWN",      # 7
+    "BLUE GREY",  # 8
+    "PINK",       # 9
+]
+
 # Uncolored node color
 UNCOLORED_NODE = QColor("#78909C")
 VIABLE_COLOR = QColor("#70C273")  # Green for viable solutions
@@ -259,3 +272,24 @@ class Styles:
     @staticmethod
     def label_info():
         return f"color: {Theme.TEXT_SECONDARY.name()}; font-size: 12px;"
+
+def get_color_name(color_index: int) -> str:
+    """
+    Get the name of a color by its index.
+    Used by ColoringInfoPanel for colorblind accessibility.
+    """
+    if 0 <= color_index < len(COLOR_NAMES):
+        return COLOR_NAMES[color_index]
+    return f"COLOR_{color_index}"
+
+
+def get_display_color(color_index: int) -> QColor:
+    """
+    Get the display QColor for a color index.
+    Used by ColoringInfoPanel to show colored circles.
+    """
+    if 0 <= color_index < len(COLORING_PALETTE):
+        return COLORING_PALETTE[color_index]
+    # Generate color for indices beyond the palette
+    hue = (color_index * 47) % 360
+    return QColor.fromHsv(hue, 200, 200)

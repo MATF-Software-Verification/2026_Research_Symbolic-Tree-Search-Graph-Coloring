@@ -293,6 +293,7 @@ class MainWindow(QMainWindow):
         """Connect signals to slots."""
         self.graph_scene.graph_changed.connect(self._on_graph_changed)
         self.graph_scene.undo_manager.add_change_callback(self._update_undo_redo_state)
+        self.graph_scene.graph_changed.connect(self._on_graph_changed)
         
     
     # Tool Management
@@ -334,8 +335,8 @@ class MainWindow(QMainWindow):
         """Clear the graph with confirmation."""
         self.graph_scene.clear_graph()
         self._colorings.clear()
-        self._update_results_display()
         self._generated_code = None
+        self.tree_view.clear_tree() 
         self.statusBar().showMessage("Graph cleared")
                 
     def _on_graph_changed(self):
@@ -343,7 +344,8 @@ class MainWindow(QMainWindow):
         # Clear old results when graph changes
         if self._colorings:
             self._colorings.clear()
-            self._update_results_display()
+
+        self.tree_view.clear_tree() 
             
     # =========================================================================
     # Code Generation
@@ -562,24 +564,10 @@ class MainWindow(QMainWindow):
         # Update UI
         if all_colorings:
             self._current_coloring_idx = 0
-            self._apply_current_coloring()
             self.statusBar().showMessage(f"Found {len(all_colorings)} valid coloring(s)")
         else:
             self.statusBar().showMessage("No valid coloring found!")
             self.graph_scene.reset_colors()
         
-        self._update_results_display()
+        
 
-
-    # TODO: Results 
-    def _apply_current_coloring(self):
-      pass
-            
-    def _update_results_display(self):
-        pass
-            
-    def _prev_coloring(self):
-        pass
-            
-    def _next_coloring(self):
-        pass

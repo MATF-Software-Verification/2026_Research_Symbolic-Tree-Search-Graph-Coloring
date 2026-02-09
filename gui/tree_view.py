@@ -6,7 +6,7 @@ from PyQt5.QtGui import QBrush, QPen, QFont, QPainter
 from PyQt5.QtWidgets import QGraphicsEllipseItem, QGraphicsLineItem, QGraphicsScene, QGraphicsTextItem, QGraphicsView
 
 from models.coloring import Theme, VIABLE_COLOR, INVALID_COLOR
-from .dialogs import ColoringDetailsDialog
+from .coloring_info_panel import ColoringInfoPanel
 
 @dataclass
 class TreeNode:
@@ -79,9 +79,15 @@ class TreeNodeItem(QGraphicsEllipseItem):
         super().hoverLeaveEvent(event)
     
     def mousePressEvent(self, event):
-        """Handle click on node - show dialog."""
-        if self.is_viable and self.parent_widget:
-            self.parent_widget.on_leaf_clicked(self.node.id)
+        """Handle click on node - show persistent info in panel."""
+        if self.parent_widget and self.node.id in self.parent_widget._coloring_map:
+            coloring = self.parent_widget._coloring_map[self.node.id]
+            # Show info panel (persistent - won't hide on leave)
+            self.parent_widget.show_coloring_info(coloring, self.is_viable, persistent=True)
+            # Apply coloring to graph
+            if hasattr(self.parent_widget, 'main_window') and self.parent_widget.main_window:
+                self.parent_widget.main_window.apply_coloring_to_graph(coloring)
+        
         super().mousePressEvent(event)
 
 class SearchTreeWidget(QGraphicsView):
@@ -113,10 +119,53 @@ class SearchTreeWidget(QGraphicsView):
         self._zoom_step = 1.15   # zoom multiplier per step
         self._pan_step = 40      # pixels per arrow press
 
+        # Coloring info panel - positioned in top-right corner
+        self._info_panel = ColoringInfoPanel(self)
+        self._info_panel_persistent = False
+        self._position_info_panel()
+
+    def _position_info_panel(self):
+        """Position the info panel in the top-right corner."""
+        margin = 10
+        panel_width = self._info_panel.width() if self._info_panel.width() > 0 else 160
+        x = self.viewport().width() - panel_width - margin
+        y = margin
+        self._info_panel.move(max(margin, x), y)
+
+    def resizeEvent(self, event):
+        """Reposition info panel when widget resizes."""
+        super().resizeEvent(event)
+        self._position_info_panel()
+
+    def show_coloring_info(self, coloring: List[int], is_valid: bool, persistent: bool = False):
+        """
+        Show coloring information in the info panel.
+        
+        Args:
+            coloring: List of color values for each node
+            is_valid: True if valid coloring, False if invalid
+            persistent: If True, panel won't hide on mouse leave
+        """
+        self._info_panel_persistent = persistent
+        self._info_panel.show_coloring(coloring, is_valid)
+        self._position_info_panel()
+    
+    def hide_coloring_info(self):
+        """Hide the coloring info panel (unless persistent)."""
+        if not self._info_panel_persistent:
+            self._info_panel.clear()
+    
+    def clear_coloring_info(self):
+        """Force clear the info panel (even if persistent)."""
+        self._info_panel_persistent = False
+        self._info_panel.clear()
+
     def clear_tree(self):
         self.scene.clear()
         self._node_items.clear()
         self._edges.clear()
+        self._coloring_map.clear()
+        self.clear_coloring_info()
 
     def keyPressEvent(self, event):
         key = event.key()
@@ -177,6 +226,15 @@ class SearchTreeWidget(QGraphicsView):
         self._zoom = 0
         self.fitInView(self.scene.sceneRect(), Qt.KeepAspectRatio)
 
+    def mousePressEvent(self, event):
+        """Clear persistent panel when clicking on empty space."""
+        item = self.itemAt(event.pos())
+        if item is None:
+            self.clear_coloring_info()
+            if self.main_window:
+                self.main_window.clear_graph_coloring()
+        
+        super().mousePressEvent(event)
 
     def build_full_tree(self, depth: int, k: int, viable_colorings: Optional[List[List[int]]] = None):
         """
@@ -398,11 +456,9 @@ class SearchTreeWidget(QGraphicsView):
         """Handle click on a viable leaf node."""
         if node_id in self._coloring_map:
             coloring = self._coloring_map[node_id]
-            dialog = ColoringDetailsDialog(coloring, parent=self)
-            # Connect dialog signal to parent (main window) if available
-            if hasattr(self.parent(), 'apply_coloring_to_graph'):
-                dialog.coloring_selected.connect(self.parent().apply_coloring_to_graph)
-            dialog.exec_()
+            is_valid = node_id in self._node_items and self._node_items[node_id].is_viable
+            self.show_coloring_info(coloring, is_valid, persistent=True)
+
 
 
 

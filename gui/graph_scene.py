@@ -387,14 +387,8 @@ class GraphScene(QGraphicsScene):
             
         self.graph_changed.emit()
         
-    # =========================================================================
-    # Coloring
-    # =========================================================================
     
-    def apply_coloring(self, coloring: List[int]):
-        """Apply a coloring to the graph."""
-        pass
-                    
+    # Reset colors             
     def reset_colors(self):
         """Reset all nodes to uncolored state."""
         for node in self._nodes:
