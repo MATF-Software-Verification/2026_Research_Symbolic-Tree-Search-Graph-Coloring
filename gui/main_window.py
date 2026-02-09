@@ -427,6 +427,11 @@ class MainWindow(QMainWindow):
         depth = max(0, num_nodes - 1)
         k = max(1, num_colors)
 
+        # Build tree immediately (all gray) so we can see it fill up
+        if hasattr(self, "tree_view") and self.tree_view is not None:
+            self.tree_view.build_full_tree(depth=depth, k=k, viable_colorings=None)
+            QApplication.processEvents()
+
         # ===== TERMINAL OUTPUT =====
         print("\n" + "=" * 60)
         print("KLEE GRAPH COLORING")
@@ -482,6 +487,10 @@ class MainWindow(QMainWindow):
                 blocked.append(coloring)
                 all_colorings.append(coloring)
                 
+                # Mark this leaf node as viable in the tree
+                if hasattr(self, "tree_view") and self.tree_view is not None:
+                    self.tree_view.mark_coloring_viable(coloring, k, depth)
+                
                 s = ", ".join(f"Node{idx}={val}" for idx, val in enumerate(coloring))
                 print(f"  ✓ Found: {s}")
                 print(f"    Total so far: {len(all_colorings)}")
@@ -521,10 +530,6 @@ class MainWindow(QMainWindow):
             print("  ✓ All colorings are valid!")
         
         print("=" * 60 + "\n")
-        
-        # Update tree view with viable colorings
-        if hasattr(self, "tree_view") and self.tree_view is not None:
-            self.tree_view.build_full_tree(depth=depth, k=k, viable_colorings=all_colorings)
         
         # Update UI
         if all_colorings:

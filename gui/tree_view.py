@@ -294,4 +294,28 @@ class SearchTreeWidget(QGraphicsView):
                 child_idx = color_val % k
                 leaf_index = leaf_index * k + child_idx
         return leaf_index
+    
+    def mark_coloring_viable(self, coloring: List[int], k: int, depth: int):
+        """
+        Mark the leaf node corresponding to a coloring as viable (green).
+        Call this in real-time as each coloring is found.
+        """
+        leaf_index = self._coloring_to_leaf_index(coloring, k)
+        
+        # Calculate the node_id of the leaf at this index
+        # Node IDs are assigned sequentially: depth 0 has 1, depth 1 has k, depth 2 has k², etc.
+        # First node at depth d has ID = (k^d - 1) / (k - 1) for k > 1
+        if depth < 0 or leaf_index < 0:
+            return
+        
+        if k == 1:
+            # Special case: single path through tree
+            node_id = depth
+        else:
+            # First leaf node ID = sum of all nodes in previous levels
+            first_leaf_id = (k**depth - 1) // (k - 1)
+            node_id = first_leaf_id + leaf_index
+        
+        if node_id in self._node_items:
+            self._node_items[node_id].set_viable(True)
 
