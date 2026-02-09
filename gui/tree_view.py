@@ -1,11 +1,12 @@
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple, Set
 
-from PyQt5.QtCore import Qt, QPointF
+from PyQt5.QtCore import Qt, QPointF, pyqtSignal, QObject
 from PyQt5.QtGui import QBrush, QPen, QFont, QPainter
 from PyQt5.QtWidgets import QGraphicsEllipseItem, QGraphicsLineItem, QGraphicsScene, QGraphicsTextItem, QGraphicsView
 
-from models.coloring import Theme, VIABLE_COLOR
+from models.coloring import Theme, VIABLE_COLOR, INVALID_COLOR
+from .dialogs import ColoringDetailsDialog
 
 @dataclass
 class TreeNode:
@@ -14,11 +15,13 @@ class TreeNode:
     index_in_level: int
 
 class TreeNodeItem(QGraphicsEllipseItem):
-    def __init__(self, node: TreeNode, radius: float = 16.0, is_viable: bool = False):
+    def __init__(self, node: TreeNode, radius: float = 16.0, is_viable: bool = False, is_invalid: bool = False, parent_widget=None):
         super().__init__(-radius, -radius, 2 * radius, 2 * radius)
         self.node = node
         self.radius = radius
         self.is_viable = is_viable
+        self.is_invalid = is_invalid
+        self.parent_widget = parent_widget
 
         self._update_appearance()
 
@@ -30,12 +33,16 @@ class TreeNodeItem(QGraphicsEllipseItem):
         self.text.setPos(-br.width() / 2, -br.height() / 2)
 
         self.setFlag(QGraphicsEllipseItem.ItemIsSelectable, True)
+        self.setAcceptHoverEvents(True)  # Enable hover events
     
     def _update_appearance(self):
-        """Update visual appearance based on viable state."""
+        """Update visual appearance based on viable/invalid state."""
         if self.is_viable:
             self.setBrush(QBrush(VIABLE_COLOR))
             self.setPen(QPen(VIABLE_COLOR.darker(150), 2))
+        elif self.is_invalid:
+            self.setBrush(QBrush(INVALID_COLOR))
+            self.setPen(QPen(INVALID_COLOR.darker(150), 2))
         else:
             self.setBrush(QBrush(Qt.lightGray))
             self.setPen(QPen(Theme.BORDER_LIGHT, 2))
@@ -43,24 +50,55 @@ class TreeNodeItem(QGraphicsEllipseItem):
     def set_viable(self, viable: bool):
         """Mark this node as representing a viable coloring."""
         self.is_viable = viable
+        self.is_invalid = False
         self._update_appearance()
+    
+    def set_invalid(self, invalid: bool):
+        """Mark this node as representing an invalid coloring."""
+        self.is_invalid = invalid
+        self.is_viable = False
+        self._update_appearance()
+    
+    def hoverEnterEvent(self, event):
+        """Handle hover enter on viable leaf."""
+        if self.is_viable and self.parent_widget:
+            # Get coloring from parent widget's map
+            if hasattr(self.parent_widget, '_coloring_map') and self.node.id in self.parent_widget._coloring_map:
+                coloring = self.parent_widget._coloring_map[self.node.id]
+                # Call apply coloring on main window
+                if hasattr(self.parent_widget, 'main_window') and self.parent_widget.main_window:
+                    self.parent_widget.main_window.apply_coloring_to_graph(coloring)
+        super().hoverEnterEvent(event)
+    
+    def hoverLeaveEvent(self, event):
+        """Handle hover leave from viable leaf."""
+        if self.is_viable and self.parent_widget:
+            # Call clear coloring on main window
+            if hasattr(self.parent_widget, 'main_window') and self.parent_widget.main_window:
+                self.parent_widget.main_window.clear_graph_coloring()
+        super().hoverLeaveEvent(event)
+    
+    def mousePressEvent(self, event):
+        """Handle click on node - show dialog."""
+        if self.is_viable and self.parent_widget:
+            self.parent_widget.on_leaf_clicked(self.node.id)
+        super().mousePressEvent(event)
 
 class SearchTreeWidget(QGraphicsView):
-    """
-    Simple k-ary tree renderer.
-    For now: draw full tree up to depth=n (levels 0..n).
-    Later: color leaves based on KLEE results and add interactions.
-    """
+    """Simple k-ary tree renderer."""
 
-    def __init__(self, parent=None):
+    def __init__(self, main_window=None, parent=None):
         self.scene = QGraphicsScene()
         super().__init__(self.scene, parent)
+        
+        self.main_window = main_window
 
         self.setRenderHint(QPainter.Antialiasing, True)
         self.setBackgroundBrush(QBrush(Theme.BG_CANVAS))
 
         self._node_items: Dict[int, TreeNodeItem] = {}
         self._edges: List[QGraphicsLineItem] = []
+        self._coloring_map: Dict[int, List[int]] = {}  # Maps node_id to coloring
 
         # layout params
         self.node_radius = 16
@@ -260,9 +298,10 @@ class SearchTreeWidget(QGraphicsView):
         # Draw nodes
         for d in range(depth + 1):
             for node in levels[d]:
-                # Mark as viable if it's a leaf and in viable set
+                # Mark leaves as viable or invalid
                 is_viable = (d == depth) and (node.id in viable_leaf_ids)
-                item = TreeNodeItem(node, radius=self.node_radius, is_viable=is_viable)
+                is_invalid = (d == depth) and (node.id not in viable_leaf_ids)
+                item = TreeNodeItem(node, radius=self.node_radius, is_viable=is_viable, is_invalid=is_invalid, parent_widget=self)
                 pos = positions[node.id]
                 item.setPos(pos)
                 self.scene.addItem(item)
@@ -318,4 +357,52 @@ class SearchTreeWidget(QGraphicsView):
         
         if node_id in self._node_items:
             self._node_items[node_id].set_viable(True)
+    
+    def mark_coloring_invalid(self, coloring: List[int], k: int, depth: int):
+        """
+        Mark the leaf node corresponding to a coloring as invalid (red).
+        Call this for colorings that were explored but failed constraints.
+        """
+        leaf_index = self._coloring_to_leaf_index(coloring, k)
+        
+        if depth < 0 or leaf_index < 0:
+            return
+        
+        if k == 1:
+            node_id = depth
+        else:
+            first_leaf_id = (k**depth - 1) // (k - 1)
+            node_id = first_leaf_id + leaf_index
+        
+        if node_id in self._node_items:
+            self._node_items[node_id].set_invalid(True)
+    
+    def store_coloring(self, leaf_node_id: int, coloring: List[int]):
+        """Store the coloring data for a leaf node so we can display it when clicked."""
+        self._coloring_map[leaf_node_id] = coloring
+    
+    def _get_leaf_node_id(self, coloring: List[int], k: int, depth: int) -> int:
+        """Get the node_id of the leaf corresponding to a coloring."""
+        leaf_index = self._coloring_to_leaf_index(coloring, k)
+        
+        if depth < 0 or leaf_index < 0:
+            return -1
+        
+        if k == 1:
+            return depth
+        else:
+            first_leaf_id = (k**depth - 1) // (k - 1)
+            return first_leaf_id + leaf_index
+    
+    def on_leaf_clicked(self, node_id: int):
+        """Handle click on a viable leaf node."""
+        if node_id in self._coloring_map:
+            coloring = self._coloring_map[node_id]
+            dialog = ColoringDetailsDialog(coloring, parent=self)
+            # Connect dialog signal to parent (main window) if available
+            if hasattr(self.parent(), 'apply_coloring_to_graph'):
+                dialog.coloring_selected.connect(self.parent().apply_coloring_to_graph)
+            dialog.exec_()
+
+
 

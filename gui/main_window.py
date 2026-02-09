@@ -231,7 +231,7 @@ class MainWindow(QMainWindow):
         title.setStyleSheet(Styles.label_title())
         layout.addWidget(title)
         
-        self.tree_view = SearchTreeWidget()
+        self.tree_view = SearchTreeWidget(main_window=self)
         self.tree_view.setMinimumSize(
             Dimensions.MIN_CANVAS_WIDTH,
             Dimensions.MIN_CANVAS_HEIGHT
@@ -407,6 +407,32 @@ class MainWindow(QMainWindow):
         finally:
             self._run_btn.setEnabled(True)
             self._run_btn.setText("▶  RUN KLEE")
+    
+    def apply_coloring_to_graph(self, coloring: List[int]):
+        """Apply a coloring solution to the graph nodes."""
+        for idx, color_value in enumerate(coloring):
+            # Find node with id=idx and set its color
+            for node in self.graph_scene._nodes:
+                if node.id == idx:
+                    node.color = color_value
+                    break
+        
+        # Update all node visuals
+        for node_item in self.graph_scene._node_items.values():
+            node_item.update_appearance()
+        
+        self.statusBar().showMessage(f"Applied coloring: {coloring}")
+    
+    def clear_graph_coloring(self):
+        """Clear all node colors from the graph."""
+        for node in self.graph_scene._nodes:
+            node.color = -1  # Reset to uncolored
+        
+        # Update all node visuals
+        for node_item in self.graph_scene._node_items.values():
+            node_item.update_appearance()
+        
+        self.statusBar().showMessage("Coloring cleared")
             
     def _execute_klee(self):
         """Execute KLEE incrementally to find ALL colorings."""
@@ -487,9 +513,11 @@ class MainWindow(QMainWindow):
                 blocked.append(coloring)
                 all_colorings.append(coloring)
                 
-                # Mark this leaf node as viable in the tree
+                # Mark this leaf node as viable in the tree and store coloring data
                 if hasattr(self, "tree_view") and self.tree_view is not None:
+                    leaf_node_id = self.tree_view._get_leaf_node_id(coloring, k, depth)
                     self.tree_view.mark_coloring_viable(coloring, k, depth)
+                    self.tree_view.store_coloring(leaf_node_id, coloring)
                 
                 s = ", ".join(f"Node{idx}={val}" for idx, val in enumerate(coloring))
                 print(f"  ✓ Found: {s}")
