@@ -427,9 +427,6 @@ class MainWindow(QMainWindow):
         depth = max(0, num_nodes - 1)
         k = max(1, num_colors)
 
-        if hasattr(self, "tree_view") and self.tree_view is not None:
-            self.tree_view.build_full_tree(depth=depth, k=k)
-
         # ===== TERMINAL OUTPUT =====
         print("\n" + "=" * 60)
         print("KLEE GRAPH COLORING")
@@ -524,6 +521,10 @@ class MainWindow(QMainWindow):
             print("  ✓ All colorings are valid!")
         
         print("=" * 60 + "\n")
+        
+        # Update tree view with viable colorings
+        if hasattr(self, "tree_view") and self.tree_view is not None:
+            self.tree_view.build_full_tree(depth=depth, k=k, viable_colorings=all_colorings)
         
         # Update UI
         if all_colorings:

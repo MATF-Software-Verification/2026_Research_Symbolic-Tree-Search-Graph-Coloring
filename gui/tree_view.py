@@ -1,11 +1,11 @@
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Set
 
 from PyQt5.QtCore import Qt, QPointF
 from PyQt5.QtGui import QBrush, QPen, QFont, QPainter
 from PyQt5.QtWidgets import QGraphicsEllipseItem, QGraphicsLineItem, QGraphicsScene, QGraphicsTextItem, QGraphicsView
 
-from models.coloring import Theme
+from models.coloring import Theme, VIABLE_COLOR
 
 @dataclass
 class TreeNode:
@@ -14,13 +14,13 @@ class TreeNode:
     index_in_level: int
 
 class TreeNodeItem(QGraphicsEllipseItem):
-    def __init__(self, node: TreeNode, radius: float = 16.0):
+    def __init__(self, node: TreeNode, radius: float = 16.0, is_viable: bool = False):
         super().__init__(-radius, -radius, 2 * radius, 2 * radius)
         self.node = node
         self.radius = radius
+        self.is_viable = is_viable
 
-        self.setBrush(QBrush(Qt.lightGray))
-        self.setPen(QPen(Theme.BORDER_LIGHT, 2))
+        self._update_appearance()
 
         self.text = QGraphicsTextItem(str(node.depth), self)
         self.text.setDefaultTextColor(Qt.black)
@@ -30,6 +30,20 @@ class TreeNodeItem(QGraphicsEllipseItem):
         self.text.setPos(-br.width() / 2, -br.height() / 2)
 
         self.setFlag(QGraphicsEllipseItem.ItemIsSelectable, True)
+    
+    def _update_appearance(self):
+        """Update visual appearance based on viable state."""
+        if self.is_viable:
+            self.setBrush(QBrush(VIABLE_COLOR))
+            self.setPen(QPen(VIABLE_COLOR.darker(150), 2))
+        else:
+            self.setBrush(QBrush(Qt.lightGray))
+            self.setPen(QPen(Theme.BORDER_LIGHT, 2))
+    
+    def set_viable(self, viable: bool):
+        """Mark this node as representing a viable coloring."""
+        self.is_viable = viable
+        self._update_appearance()
 
 class SearchTreeWidget(QGraphicsView):
     """
@@ -126,9 +140,10 @@ class SearchTreeWidget(QGraphicsView):
         self.fitInView(self.scene.sceneRect(), Qt.KeepAspectRatio)
 
 
-    def build_full_tree(self, depth: int, k: int):
+    def build_full_tree(self, depth: int, k: int, viable_colorings: Optional[List[List[int]]] = None):
         """
         Build and draw a complete k-ary tree.
+        viable_colorings: List of valid colorings to highlight as green leaves.
         """
 
         # Safety cap to avoid freezing the UI on large trees
@@ -229,10 +244,25 @@ class SearchTreeWidget(QGraphicsView):
                     )
                     self._edges.append(line)
 
+        # Determine which leaf nodes correspond to viable colorings
+        viable_leaf_ids: Set[int] = set()
+        if viable_colorings and depth >= 0:
+            # Convert colorings (as lists of color assignments) to leaf node IDs
+            # A leaf node's position in the tree corresponds to a coloring:
+            # the leaf's index in the leaf list maps to a coloring assignment
+            for coloring in viable_colorings:
+                # Convert coloring to leaf index
+                # Each color value represents a choice at that depth level
+                leaf_index = self._coloring_to_leaf_index(coloring, k)
+                if leaf_index < len(levels[depth]):
+                    viable_leaf_ids.add(levels[depth][leaf_index].id)
+
         # Draw nodes
         for d in range(depth + 1):
             for node in levels[d]:
-                item = TreeNodeItem(node, radius=self.node_radius)
+                # Mark as viable if it's a leaf and in viable set
+                is_viable = (d == depth) and (node.id in viable_leaf_ids)
+                item = TreeNodeItem(node, radius=self.node_radius, is_viable=is_viable)
                 pos = positions[node.id]
                 item.setPos(pos)
                 self.scene.addItem(item)
@@ -247,4 +277,21 @@ class SearchTreeWidget(QGraphicsView):
             self.fitInView(self.scene.sceneRect(), Qt.KeepAspectRatio)
 
         self.setFocus()
+
+    def _coloring_to_leaf_index(self, coloring: List[int], k: int) -> int:
+        """
+        Convert a coloring (list of color assignments) to a leaf node index.
+        The coloring represents the path through the tree:
+        each color value maps to a child index at each depth level.
+        """
+        leaf_index = 0
+        k = max(1, k)  # avoid division by zero
+        for depth_level, color_val in enumerate(coloring):
+            # Each color value is clamped to valid range for that level
+            # This maps to a position in the tree
+            if depth_level > 0:  # Skip depth 0 (single root)
+                # Simple mapping: color value determines which child to follow
+                child_idx = color_val % k
+                leaf_index = leaf_index * k + child_idx
+        return leaf_index
 

@@ -22,7 +22,8 @@ COLORING_PALETTE = [
 
 # Uncolored node color
 UNCOLORED_NODE = QColor("#78909C")
-
+VIABLE_COLOR = QColor("#70C273")  # Green for viable solutions
+INVALID_COLOR = QColor("#F44336")  # Red for invalid solutions
 
 
 class Theme:
