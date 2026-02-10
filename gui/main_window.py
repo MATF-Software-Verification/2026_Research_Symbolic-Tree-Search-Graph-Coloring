@@ -345,6 +345,8 @@ class MainWindow(QMainWindow):
         if self._colorings:
             self._colorings.clear()
 
+        self.clear_graph_coloring()
+        self._generated_code = None
         self.tree_view.clear_tree() 
             
     # =========================================================================
@@ -471,12 +473,12 @@ class MainWindow(QMainWindow):
         num_colors = self._colors_spin.value()
 
         # ===== DRAW SEARCH TREE =====
-        depth = max(0, num_nodes - 1)
+        leaf_depth = num_nodes  
         k = max(1, num_colors)
 
         # Build tree immediately (all gray) so we can see it fill up
         if hasattr(self, "tree_view") and self.tree_view is not None:
-            self.tree_view.build_full_tree(depth=depth, k=k, viable_colorings=None)
+            self.tree_view.build_full_tree(num_nodes=leaf_depth, k=k, viable_colorings=None)
             QApplication.processEvents()
 
         # ===== TERMINAL OUTPUT =====
@@ -536,8 +538,8 @@ class MainWindow(QMainWindow):
                 
                 # Mark this leaf node as viable in the tree and store coloring data
                 if hasattr(self, "tree_view") and self.tree_view is not None:
-                    leaf_node_id = self.tree_view._get_leaf_node_id(coloring, k, depth)
-                    self.tree_view.mark_coloring_viable(coloring, k, depth)
+                    leaf_node_id = self.tree_view._get_leaf_node_id(coloring, k, leaf_depth)
+                    self.tree_view.mark_coloring_viable(coloring, k, leaf_depth)
                     self.tree_view.store_coloring(leaf_node_id, coloring)
                 
                 s = ", ".join(f"Node{idx}={val}" for idx, val in enumerate(coloring))

@@ -132,11 +132,10 @@ class SearchTreeWidget(QGraphicsView):
         self._info_panel_persistent = False
         self._position_info_panel()
 
-    def _leaf_index_to_coloring(self, leaf_index: int, k: int, depth: int) -> List[int]:
-        n = depth + 1
+    def _leaf_index_to_coloring(self, leaf_index: int, k: int, n: int) -> List[int]:
         coloring = [0] * n
         x = leaf_index
-        for d in range(depth, 0, -1):
+        for d in range(n - 1, -1, -1):
             coloring[d] = x % k
             x //= k
         return coloring
@@ -323,18 +322,18 @@ class SearchTreeWidget(QGraphicsView):
         
         super().mousePressEvent(event)
 
-    def build_full_tree(self, depth: int, k: int, viable_colorings: Optional[List[List[int]]] = None):
+    def build_full_tree(self, num_nodes: int, k: int, viable_colorings: Optional[List[List[int]]] = None):
         """
         Build and draw a complete k-ary tree.
         viable_colorings: List of valid colorings to highlight as green leaves.
         """
         # Store tree parameters for partial coloring extraction
         self._tree_k = k
-        self._tree_depth = depth
+        self._tree_depth = num_nodes
 
         # Safety cap to avoid freezing the UI on large trees
-        if depth > 0 and (k ** depth) > 2000:
-            print(f"[WARN] Tree too large to render (k={k}, depth={depth}, leaves={k**depth}). Skipping.")
+        if num_nodes > 0 and (k ** num_nodes) > 2000:
+            print(f"[WARN] Tree too large to render (k={k}, depth={num_nodes}, leaves={k**num_nodes}). Skipping.")
             self.clear_tree()
             return
 
@@ -348,7 +347,7 @@ class SearchTreeWidget(QGraphicsView):
         view_w = self.viewport().width()
         left_margin = 40
         right_margin = 40
-        leaf_count = k ** depth if depth >= 0 else 1
+        leaf_count = k ** num_nodes if num_nodes >= 0 else 1
 
         if leaf_count > 60:
             self.node_radius = 10
@@ -366,16 +365,16 @@ class SearchTreeWidget(QGraphicsView):
             dynamic_gap = available_w / (leaf_count - 1)
             self.base_gap = max(min_gap, min(140, dynamic_gap))
 
-        if depth == 0:
+        if num_nodes == 0:
             dynamic_level_gap = 0
         else:
             available_h = max(1, view_h - top_margin - bottom_margin)
-            dynamic_level_gap = available_h / depth
+            dynamic_level_gap = available_h / num_nodes
 
         # Clamp so it doesn't become too small/too huge
         self.level_gap = max(40, min(140, dynamic_level_gap))
 
-        if depth < 0 or k < 1:
+        if num_nodes < 0 or k < 1:
             return
 
         # total levels = depth+1
@@ -383,7 +382,7 @@ class SearchTreeWidget(QGraphicsView):
         node_id = 0
 
         # Create nodes per level
-        for d in range(depth + 1):
+        for d in range(num_nodes + 1):
             count = (k ** d)
             level_nodes = []
             for idx in range(count):
@@ -402,16 +401,16 @@ class SearchTreeWidget(QGraphicsView):
         # Place leaves evenly
         for i, leaf in enumerate(levels[-1]):
             x = x0 + i * self.base_gap
-            y = top_margin + depth * self.level_gap
+            y = top_margin + num_nodes * self.level_gap
             positions[leaf.id] = QPointF(x, y)
 
         leaf_nodes = levels[-1]
         for i, leaf in enumerate(leaf_nodes):
-            self._coloring_map[leaf.id] = self._leaf_index_to_coloring(i, k, depth)
+            self._coloring_map[leaf.id] = self._leaf_index_to_coloring(i, k, num_nodes)
 
 
         # Place internal nodes as average of children x
-        for d in range(depth - 1, -1, -1):
+        for d in range(num_nodes - 1, -1, -1):
             for node in levels[d]:
                 first_child_idx = node.index_in_level * k
                 child_ids = [levels[d + 1][first_child_idx + j].id for j in range(k)]
@@ -421,7 +420,7 @@ class SearchTreeWidget(QGraphicsView):
 
         # Draw edges first (so nodes are on top)
         pen = QPen(Theme.EDGE_TREE, 2)
-        for d in range(depth):
+        for d in range(num_nodes):
             for parent in levels[d]:
                 parent_pos = positions[parent.id]
                 first_child_idx = parent.index_in_level * k
@@ -437,23 +436,25 @@ class SearchTreeWidget(QGraphicsView):
 
         # Determine which leaf nodes correspond to viable colorings
         viable_leaf_ids: Set[int] = set()
-        if viable_colorings and depth >= 0:
+        if viable_colorings and num_nodes >= 0:
             # Convert colorings (as lists of color assignments) to leaf node IDs
             # A leaf node's position in the tree corresponds to a coloring:
             # the leaf's index in the leaf list maps to a coloring assignment
             for coloring in viable_colorings:
                 # Convert coloring to leaf index
                 # Each color value represents a choice at that depth level
+                if len(coloring) != num_nodes:
+                    continue
                 leaf_index = self._coloring_to_leaf_index(coloring, k)
-                if leaf_index < len(levels[depth]):
-                    viable_leaf_ids.add(levels[depth][leaf_index].id)
+                if leaf_index < len(levels[num_nodes]):
+                    viable_leaf_ids.add(levels[num_nodes][leaf_index].id)
 
         # Draw nodes
-        for d in range(depth + 1):
+        for d in range(num_nodes + 1):
             for node in levels[d]:
                 # Mark leaves as viable or invalid
-                is_viable = (d == depth) and (node.id in viable_leaf_ids)
-                is_invalid = (d == depth) and (node.id not in viable_leaf_ids)
+                is_viable = (d == num_nodes) and (node.id in viable_leaf_ids)
+                is_invalid = (d == num_nodes) and (node.id not in viable_leaf_ids)
                 
                 # Find parent item for this node
                 parent_item = None
@@ -486,14 +487,10 @@ class SearchTreeWidget(QGraphicsView):
         each color value maps to a child index at each depth level.
         """
         leaf_index = 0
-        k = max(1, k)  # avoid division by zero
-        for depth_level, color_val in enumerate(coloring):
+        for c in coloring:
             # Each color value is clamped to valid range for that level
             # This maps to a position in the tree
-            if depth_level > 0:  # Skip depth 0 (single root)
-                # Simple mapping: color value determines which child to follow
-                child_idx = color_val % k
-                leaf_index = leaf_index * k + child_idx
+            leaf_index = leaf_index * k + (c % k)
         return leaf_index
     
     def mark_coloring_viable(self, coloring: List[int], k: int, depth: int):
@@ -501,22 +498,7 @@ class SearchTreeWidget(QGraphicsView):
         Mark the leaf node corresponding to a coloring as viable (green).
         Call this in real-time as each coloring is found.
         """
-        leaf_index = self._coloring_to_leaf_index(coloring, k)
-        
-        # Calculate the node_id of the leaf at this index
-        # Node IDs are assigned sequentially: depth 0 has 1, depth 1 has k, depth 2 has k², etc.
-        # First node at depth d has ID = (k^d - 1) / (k - 1) for k > 1
-        if depth < 0 or leaf_index < 0:
-            return
-        
-        if k == 1:
-            # Special case: single path through tree
-            node_id = depth
-        else:
-            # First leaf node ID = sum of all nodes in previous levels
-            first_leaf_id = (k**depth - 1) // (k - 1)
-            node_id = first_leaf_id + leaf_index
-        
+        node_id = self._get_leaf_node_id(coloring, k, depth)
         if node_id in self._node_items:
             self._node_items[node_id].set_viable(True)
     
@@ -525,17 +507,7 @@ class SearchTreeWidget(QGraphicsView):
         Mark the leaf node corresponding to a coloring as invalid (red).
         Call this for colorings that were explored but failed constraints.
         """
-        leaf_index = self._coloring_to_leaf_index(coloring, k)
-        
-        if depth < 0 or leaf_index < 0:
-            return
-        
-        if k == 1:
-            node_id = depth
-        else:
-            first_leaf_id = (k**depth - 1) // (k - 1)
-            node_id = first_leaf_id + leaf_index
-        
+        node_id = self._get_leaf_node_id(coloring, k, depth)
         if node_id in self._node_items:
             self._node_items[node_id].set_invalid(True)
     
@@ -551,10 +523,11 @@ class SearchTreeWidget(QGraphicsView):
             return -1
         
         if k == 1:
-            return depth
+            first_leaf_id = depth
         else:
             first_leaf_id = (k**depth - 1) // (k - 1)
-            return first_leaf_id + leaf_index
+            
+        return first_leaf_id + leaf_index
     
     def on_leaf_clicked(self, node_id: int):
         """Handle click on a viable leaf node."""
