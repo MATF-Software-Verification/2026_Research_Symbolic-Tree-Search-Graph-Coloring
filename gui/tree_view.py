@@ -59,30 +59,6 @@ class TreeNodeItem(QGraphicsEllipseItem):
         self.is_viable = False
         self._update_appearance()
     
-    def hoverEnterEvent(self, event):
-        """Handle hover enter on leaf (valid or invalid)."""
-        if (self.is_viable or self.is_invalid) and self.parent_widget:
-            # Get coloring from parent widget's map
-            if hasattr(self.parent_widget, '_coloring_map') and self.node.id in self.parent_widget._coloring_map:
-                coloring = self.parent_widget._coloring_map[self.node.id]
-                # Call apply coloring on main window
-                if hasattr(self.parent_widget, 'main_window') and self.parent_widget.main_window:
-                    mw = self.parent_widget.main_window
-                    mw.apply_coloring_to_graph(coloring)
-
-                    if self.is_invalid:
-                        conflicts = mw.find_conflict_edges(coloring)
-                        if conflicts:
-                            mw.highlight_conflict_edges(conflicts)
-        super().hoverEnterEvent(event)
-    
-    def hoverLeaveEvent(self, event):
-        """Handle hover leave from leaf."""
-        if (self.is_viable or self.is_invalid) and self.parent_widget:
-            # Call clear coloring on main window
-            if hasattr(self.parent_widget, 'main_window') and self.parent_widget.main_window:
-                self.parent_widget.main_window.clear_graph_coloring()
-        super().hoverLeaveEvent(event)
     
     def mousePressEvent(self, event):
         """Handle click on node - show persistent info in panel."""
@@ -99,7 +75,10 @@ class TreeNodeItem(QGraphicsEllipseItem):
             # Apply coloring to graph
             if hasattr(self.parent_widget, 'main_window') and self.parent_widget.main_window:
                 mw = self.parent_widget.main_window
+                # Reset edge styles first (clears any previous conflict highlighting)
+                mw.graph_scene.reset_edge_styles()
                 mw.apply_coloring_to_graph(coloring)
+                # Then highlight conflicts if this is an invalid coloring
                 if self.is_invalid and conflicts:
                     mw.highlight_conflict_edges(conflicts)
         
