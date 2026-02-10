@@ -220,7 +220,7 @@ class SearchTreeWidget(QGraphicsView):
             return []
         
         max_depth = path[-1][0]
-        coloring = [0] * (max_depth + 1)
+        coloring = [0] * (max_depth)
         
         # At each level, compute which child branch we took
         for i in range(1, len(path)):
@@ -232,7 +232,7 @@ class SearchTreeWidget(QGraphicsView):
                 # Children of node with index_in_level p are at indices p*k, p*k+1, ..., p*k+k-1
                 child_number = curr_idx - prev_idx * k
                 if 0 <= child_number < k:
-                    coloring[curr_depth] = child_number
+                    coloring[curr_depth - 1] = child_number
         
         return coloring
     
