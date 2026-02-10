@@ -433,9 +433,24 @@ class MainWindow(QMainWindow):
         # Update all node visuals
         for node_item in self.graph_scene._node_items.values():
             node_item.update_appearance()
+
+        self.graph_scene.reset_edge_styles()
         
         self.statusBar().showMessage("Coloring cleared")
             
+    def find_conflict_edges(self, coloring):
+        """Return a list of all conflicting edges (u,v)."""
+        conflicts = []
+        for (u, v) in self.graph_scene.get_edges_as_tuples():
+            if coloring[u] == coloring[v]:
+                conflicts.append((u, v))
+        return conflicts
+
+    def highlight_conflict_edges(self, conflicts):
+        """Highlight all conflicting edges at once."""
+        self.graph_scene.highlight_edges(conflicts)
+
+
     def _execute_klee(self):
         """Execute KLEE incrementally to find ALL colorings."""
         import sys

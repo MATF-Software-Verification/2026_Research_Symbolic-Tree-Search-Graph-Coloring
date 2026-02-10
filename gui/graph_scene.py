@@ -2,13 +2,13 @@ from typing import List, Optional, Dict, Tuple
 
 from PyQt5.QtWidgets import QGraphicsScene
 from PyQt5.QtCore import Qt, QPointF, pyqtSignal
-from PyQt5.QtGui import QBrush
+from PyQt5.QtGui import QBrush, QPen
 
 from models.graph import Node, Edge, GraphState, Tool
 from .node_item import NodeItem
 from .edge_item import EdgeItem, TempEdgeItem
 from .actions import UndoRedoManager
-from models.coloring import Theme
+from models.coloring import Theme, EDGE_WIDTH
 
 
 class GraphScene(QGraphicsScene):
@@ -395,6 +395,32 @@ class GraphScene(QGraphicsScene):
             node.color = -1
             if node.id in self._node_items:
                 self._node_items[node.id].reset_color()
+
+    def reset_edge_styles(self):
+        """Reset all edges to default style."""
+        for item in self._edge_items:
+            item.setPen(QPen(Theme.EDGE_DEFAULT, EDGE_WIDTH, Qt.SolidLine, Qt.RoundCap))
+
+    def highlight_edge(self, u: int, v: int):
+        """Highlight a specific edge (u,v) in red."""
+        self.reset_edge_styles()
+        for item in self._edge_items:
+            a, b = item.edge.source, item.edge.target
+            if (a == u and b == v) or (a == v and b == u):
+                item.setPen(QPen(Theme.ACCENT_ERROR, EDGE_WIDTH + 2, Qt.SolidLine, Qt.RoundCap))
+                return
+            
+    def highlight_edges(self, edges):
+        """Highlight multiple edges."""
+        self.reset_edge_styles()
+        edges_set = {tuple(sorted(e)) for e in edges}
+
+        for item in self._edge_items:
+            a, b = item.edge.source, item.edge.target
+            if tuple(sorted((a, b))) in edges_set:
+                item.setPen(QPen(Qt.red, EDGE_WIDTH + 2, Qt.SolidLine, Qt.RoundCap))
+
+
                 
     # Export Data
     def get_edges_as_tuples(self) -> List[Tuple[int, int]]:

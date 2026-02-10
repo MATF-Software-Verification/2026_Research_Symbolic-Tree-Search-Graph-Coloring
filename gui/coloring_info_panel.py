@@ -136,6 +136,21 @@ class ColoringInfoPanel(QFrame):
         self.status_layout.addWidget(self.status_value)
         self.status_layout.addStretch()
         self.main_layout.addLayout(self.status_layout)
+
+        # Conflict line (only visible for invalid)
+        self.conflict_layout = QHBoxLayout()
+        self.conflict_layout.setSpacing(4)
+
+        self.conflict_text = QLabel("Conflict:")
+        self.conflict_text.setStyleSheet("font-size: 11px; color: #555;")
+
+        self.conflict_value = QLabel("—")
+        self.conflict_value.setStyleSheet("font-size: 11px; font-weight: bold; color: #111;")
+        self.conflict_value.setWordWrap(True)
+
+        self.conflict_layout.addWidget(self.conflict_text)
+        self.conflict_layout.addWidget(self.conflict_value, 1)
+        self.main_layout.addLayout(self.conflict_layout)
         
         # Separator line
         separator = QFrame()
@@ -167,6 +182,10 @@ class ColoringInfoPanel(QFrame):
         self.status_value.setText("—")
         self.status_value.setStyleSheet("font-size: 11px; font-weight: bold; color: #666;")
         
+        self.conflict_value.setText("—")
+        self.conflict_text.hide()
+        self.conflict_value.hide()
+
         # Clear node rows
         for row in self._node_rows:
             self.nodes_layout.removeWidget(row)
@@ -175,7 +194,7 @@ class ColoringInfoPanel(QFrame):
         
         self.hide()
     
-    def show_coloring(self, coloring: List[int], is_valid: bool):
+    def show_coloring(self, coloring: List[int], is_valid: bool, conflict=None):
         """
         Display a coloring in the panel.
         """
@@ -190,6 +209,31 @@ class ColoringInfoPanel(QFrame):
             self.status_value.setStyleSheet(
                 "font-size: 11px; font-weight: bold; color: #c62828;"
             )
+
+        # Conflict display (supports one tuple or list of tuples)
+        if (not is_valid) and conflict:
+            # normalize to list
+            if isinstance(conflict, tuple) and len(conflict) == 2:
+                conflicts = [conflict]
+            else:
+                conflicts = list(conflict)
+
+            # build readable list
+            parts = []
+            for (u, v) in conflicts:
+                cu = coloring[u]
+                parts.append(f"({u}-{v}) same color {cu}")
+
+            self.conflict_value.setText("; ".join(parts))
+            self.conflict_value.setStyleSheet("font-size: 11px; font-weight: bold; color: #c62828;")
+            self.conflict_text.show()
+            self.conflict_value.show()
+        else:
+            self.conflict_value.setText("—")
+            self.conflict_text.hide()
+            self.conflict_value.hide()
+
+
         
         # Clear existing rows
         for row in self._node_rows:

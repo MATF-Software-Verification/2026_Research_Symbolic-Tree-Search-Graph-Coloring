@@ -60,19 +60,25 @@ class TreeNodeItem(QGraphicsEllipseItem):
         self._update_appearance()
     
     def hoverEnterEvent(self, event):
-        """Handle hover enter on viable leaf."""
-        if self.is_viable and self.parent_widget:
+        """Handle hover enter on leaf (valid or invalid)."""
+        if (self.is_viable or self.is_invalid) and self.parent_widget:
             # Get coloring from parent widget's map
             if hasattr(self.parent_widget, '_coloring_map') and self.node.id in self.parent_widget._coloring_map:
                 coloring = self.parent_widget._coloring_map[self.node.id]
                 # Call apply coloring on main window
                 if hasattr(self.parent_widget, 'main_window') and self.parent_widget.main_window:
-                    self.parent_widget.main_window.apply_coloring_to_graph(coloring)
+                    mw = self.parent_widget.main_window
+                    mw.apply_coloring_to_graph(coloring)
+
+                    if self.is_invalid:
+                        conflicts = mw.find_conflict_edges(coloring)
+                        if conflicts:
+                            mw.highlight_conflict_edges(conflicts)
         super().hoverEnterEvent(event)
     
     def hoverLeaveEvent(self, event):
-        """Handle hover leave from viable leaf."""
-        if self.is_viable and self.parent_widget:
+        """Handle hover leave from leaf."""
+        if (self.is_viable or self.is_invalid) and self.parent_widget:
             # Call clear coloring on main window
             if hasattr(self.parent_widget, 'main_window') and self.parent_widget.main_window:
                 self.parent_widget.main_window.clear_graph_coloring()
@@ -82,11 +88,20 @@ class TreeNodeItem(QGraphicsEllipseItem):
         """Handle click on node - show persistent info in panel."""
         if self.parent_widget and self.node.id in self.parent_widget._coloring_map:
             coloring = self.parent_widget._coloring_map[self.node.id]
+
+            conflicts = None
+            if self.is_invalid and hasattr(self.parent_widget, "main_window") and self.parent_widget.main_window:
+                conflicts = self.parent_widget.main_window.find_conflict_edges(coloring)
+
             # Show info panel (persistent - won't hide on leave)
-            self.parent_widget.show_coloring_info(coloring, self.is_viable, persistent=True)
+            self.parent_widget.show_coloring_info(coloring, self.is_viable, persistent=True, conflict=conflicts)
+            
             # Apply coloring to graph
             if hasattr(self.parent_widget, 'main_window') and self.parent_widget.main_window:
-                self.parent_widget.main_window.apply_coloring_to_graph(coloring)
+                mw = self.parent_widget.main_window
+                mw.apply_coloring_to_graph(coloring)
+                if self.is_invalid and conflicts:
+                    mw.highlight_conflict_edges(conflicts)
         
         super().mousePressEvent(event)
 
@@ -124,6 +139,16 @@ class SearchTreeWidget(QGraphicsView):
         self._info_panel_persistent = False
         self._position_info_panel()
 
+    def _leaf_index_to_coloring(self, leaf_index: int, k: int, depth: int) -> List[int]:
+        n = depth + 1
+        coloring = [0] * n
+        x = leaf_index
+        for d in range(depth, 0, -1):
+            coloring[d] = x % k
+            x //= k
+        return coloring
+
+
     def _position_info_panel(self):
         """Position the info panel in the top-right corner."""
         margin = 10
@@ -137,7 +162,7 @@ class SearchTreeWidget(QGraphicsView):
         super().resizeEvent(event)
         self._position_info_panel()
 
-    def show_coloring_info(self, coloring: List[int], is_valid: bool, persistent: bool = False):
+    def show_coloring_info(self, coloring: List[int], is_valid: bool, persistent: bool = False, conflict=None):
         """
         Show coloring information in the info panel.
         
@@ -147,7 +172,7 @@ class SearchTreeWidget(QGraphicsView):
             persistent: If True, panel won't hide on mouse leave
         """
         self._info_panel_persistent = persistent
-        self._info_panel.show_coloring(coloring, is_valid)
+        self._info_panel.show_coloring(coloring, is_valid, conflict)
         self._position_info_panel()
     
     def hide_coloring_info(self):
@@ -315,6 +340,11 @@ class SearchTreeWidget(QGraphicsView):
             y = top_margin + depth * self.level_gap
             positions[leaf.id] = QPointF(x, y)
 
+        leaf_nodes = levels[-1]
+        for i, leaf in enumerate(leaf_nodes):
+            self._coloring_map[leaf.id] = self._leaf_index_to_coloring(i, k, depth)
+
+
         # Place internal nodes as average of children x
         for d in range(depth - 1, -1, -1):
             for node in levels[d]:
@@ -457,7 +487,7 @@ class SearchTreeWidget(QGraphicsView):
         if node_id in self._coloring_map:
             coloring = self._coloring_map[node_id]
             is_valid = node_id in self._node_items and self._node_items[node_id].is_viable
-            self.show_coloring_info(coloring, is_valid, persistent=True)
+            self.show_coloring_info(coloring, is_valid, persistent=True, conflict=None)
 
 
 

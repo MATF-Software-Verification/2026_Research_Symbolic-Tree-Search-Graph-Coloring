@@ -34,6 +34,12 @@ class EdgeItem(QGraphicsLineItem):
     def connects_node(self, node_id: int) -> bool:
         """Check if this edge connects to a given node."""
         return self.edge.connects(node_id)
+    
+    def set_conflict(self, on: bool):
+        if on:
+            self.setPen(QPen(Qt.red, 4))
+       
+
 
 
 class TempEdgeItem(QGraphicsLineItem):
