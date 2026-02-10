@@ -172,10 +172,11 @@ class ColoringInfoPanel(QFrame):
         # Initially hidden
         self.hide()
         
-        # Size policy
-        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        # Size policy - allow variable height
+        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
         self.setMinimumWidth(160)
         self.setMaximumWidth(200)
+        self.setMaximumHeight(800)  # Reasonable max height
     
     def clear(self):
         """Clear the panel and hide it."""
@@ -193,6 +194,36 @@ class ColoringInfoPanel(QFrame):
         self._node_rows.clear()
         
         self.hide()
+    
+    def _update_panel_height(self):
+        """Calculate and set appropriate height based on content."""
+        # Calculate needed height
+        # Title height
+        height = 20  # title
+        height += 6  # spacing
+        height += 20  # status line
+        height += 6  # spacing after status
+        
+        # Conflict line (if visible)
+        if self.conflict_text.isVisible():
+            height += 25  # approximate for conflict text
+            height += 6   # spacing
+        
+        # Separator
+        height += 1 + 6
+        
+        # Rows height
+        row_height = 24  # approximate height per row (text height + padding)
+        height += len(self._node_rows) * row_height + 4
+        
+        # Add padding
+        height += 6
+        
+        # Set height
+        self.setMinimumHeight(height)
+        self.resize(self.width(), height)
+        self.adjustSize()
+
     
     def show_coloring(self, coloring: List[int], is_valid: bool, conflict=None):
         """
@@ -248,6 +279,41 @@ class ColoringInfoPanel(QFrame):
             self.nodes_layout.addWidget(row)
             self._node_rows.append(row)
         
-        # Adjust size and show
-        self.adjustSize()
+        # Update height and show
+        self._update_panel_height()
+        self.show()
+    
+    def show_partial_coloring(self, partial_coloring: List[int]):
+        """
+        Display a partial coloring (for inner tree nodes) in the panel.
+        
+        Args:
+            partial_coloring: List of color values for nodes determined so far
+        """
+        # Update status
+        self.status_value.setText("Partial")
+        self.status_value.setStyleSheet(
+            "font-size: 11px; font-weight: bold; color: #1976d2;"
+        )
+        
+        # No conflicts for partial colorings
+        self.conflict_value.setText("—")
+        self.conflict_text.hide()
+        self.conflict_value.hide()
+        
+        # Clear existing rows
+        for row in self._node_rows:
+            self.nodes_layout.removeWidget(row)
+            row.deleteLater()
+        self._node_rows.clear()
+        
+        # Add rows for each node with determined color
+        for node_id, color_value in enumerate(partial_coloring):
+            row = NodeColorRow(node_id)
+            row.set_coloring(color_value)
+            self.nodes_layout.addWidget(row)
+            self._node_rows.append(row)
+        
+        # Update height and show
+        self._update_panel_height()
         self.show()

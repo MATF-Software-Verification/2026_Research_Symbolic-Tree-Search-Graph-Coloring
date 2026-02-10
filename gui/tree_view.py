@@ -15,13 +15,14 @@ class TreeNode:
     index_in_level: int
 
 class TreeNodeItem(QGraphicsEllipseItem):
-    def __init__(self, node: TreeNode, radius: float = 16.0, is_viable: bool = False, is_invalid: bool = False, parent_widget=None):
+    def __init__(self, node: TreeNode, radius: float = 16.0, is_viable: bool = False, is_invalid: bool = False, parent_widget=None, parent_item=None):
         super().__init__(-radius, -radius, 2 * radius, 2 * radius)
         self.node = node
         self.radius = radius
         self.is_viable = is_viable
         self.is_invalid = is_invalid
         self.parent_widget = parent_widget
+        self.parent_item = parent_item  # Reference to parent node in tree
 
         self._update_appearance()
 
@@ -61,26 +62,35 @@ class TreeNodeItem(QGraphicsEllipseItem):
     
     
     def mousePressEvent(self, event):
-        """Handle click on node - show persistent info in panel."""
-        if self.parent_widget and self.node.id in self.parent_widget._coloring_map:
-            coloring = self.parent_widget._coloring_map[self.node.id]
+        """Handle click on node - show coloring info for leaves or partial coloring for inner nodes."""
+        if (self.is_viable or self.is_invalid):
+            # Leaf node - show complete coloring
+            if self.parent_widget and self.node.id in self.parent_widget._coloring_map:
+                coloring = self.parent_widget._coloring_map[self.node.id]
 
-            conflicts = None
-            if self.is_invalid and hasattr(self.parent_widget, "main_window") and self.parent_widget.main_window:
-                conflicts = self.parent_widget.main_window.find_conflict_edges(coloring)
+                conflicts = None
+                if self.is_invalid and hasattr(self.parent_widget, "main_window") and self.parent_widget.main_window:
+                    conflicts = self.parent_widget.main_window.find_conflict_edges(coloring)
 
-            # Show info panel (persistent - won't hide on leave)
-            self.parent_widget.show_coloring_info(coloring, self.is_viable, persistent=True, conflict=conflicts)
-            
-            # Apply coloring to graph
-            if hasattr(self.parent_widget, 'main_window') and self.parent_widget.main_window:
-                mw = self.parent_widget.main_window
-                # Reset edge styles first (clears any previous conflict highlighting)
-                mw.graph_scene.reset_edge_styles()
-                mw.apply_coloring_to_graph(coloring)
-                # Then highlight conflicts if this is an invalid coloring
-                if self.is_invalid and conflicts:
-                    mw.highlight_conflict_edges(conflicts)
+                # Show info panel (persistent - won't hide on leave)
+                self.parent_widget.show_coloring_info(coloring, self.is_viable, persistent=True, conflict=conflicts)
+                
+                # Apply coloring to graph
+                if hasattr(self.parent_widget, 'main_window') and self.parent_widget.main_window:
+                    mw = self.parent_widget.main_window
+                    # Reset edge styles first (clears any previous conflict highlighting)
+                    mw.graph_scene.reset_edge_styles()
+                    mw.apply_coloring_to_graph(coloring)
+                    # Then highlight conflicts if this is an invalid coloring
+                    if self.is_invalid and conflicts:
+                        mw.highlight_conflict_edges(conflicts)
+        else:
+            # Inner node - show partial coloring
+            if self.parent_widget:
+                partial_coloring = self.parent_widget._get_partial_coloring(self)
+                if partial_coloring is not None:
+                    # Show partial coloring info - pass is_partial=True flag
+                    self.parent_widget.show_partial_coloring_info(partial_coloring, persistent=True)
         
         super().mousePressEvent(event)
 
@@ -104,6 +114,10 @@ class SearchTreeWidget(QGraphicsView):
         self.node_radius = 16
         self.level_gap = 70
         self.base_gap = 50  # horizontal spacing for leaves
+        
+        # Store tree parameters
+        self._tree_k = None  # Number of colors/branching factor
+        self._tree_depth = None  # Tree depth
 
         # Enable keyboard control
         self.setFocusPolicy(Qt.StrongFocus)   # allow widget to receive key presses
@@ -153,6 +167,75 @@ class SearchTreeWidget(QGraphicsView):
         self._info_panel_persistent = persistent
         self._info_panel.show_coloring(coloring, is_valid, conflict)
         self._position_info_panel()
+    
+    def show_partial_coloring_info(self, partial_coloring: List[int], persistent: bool = False):
+        """
+        Show partial coloring information in the info panel for inner nodes.
+        
+        Args:
+            partial_coloring: List of color values for nodes determined so far
+            persistent: If True, panel won't hide on mouse leave
+        """
+        self._info_panel_persistent = persistent
+        self._info_panel.show_partial_coloring(partial_coloring)
+        self._position_info_panel()
+    
+    def _get_partial_coloring(self, node_item: 'TreeNodeItem') -> Optional[List[int]]:
+        """
+        Extract partial coloring from root to given inner node.
+        Returns list of color assignments for nodes 0 to depth.
+        """
+        if self._tree_k is None:
+            return None
+        
+        # Traverse up from node to root, collecting depth and index_in_level
+        path = []
+        current = node_item
+        
+        while current is not None:
+            path.append((current.node.depth, current.node.index_in_level))
+            current = current.parent_item
+        
+        # Reverse to get path from root to node
+        path.reverse()
+        
+        # If no path, return None
+        if not path:
+            return None
+        
+        # Use the stored k to extract coloring from the path
+        return self._get_partial_coloring_from_path(path, self._tree_k)
+    
+    def _get_partial_coloring_from_path(self, path: List[Tuple[int, int]], k: int) -> List[int]:
+        """
+        Convert a path (list of (depth, index_in_level) tuples) to partial coloring.
+        
+        Args:
+            path: Path from root to node, as list of (depth, index_in_level) tuples
+            k: Branching factor (colors)
+        
+        Returns:
+            Partial coloring list
+        """
+        if not path:
+            return []
+        
+        max_depth = path[-1][0]
+        coloring = [0] * (max_depth + 1)
+        
+        # At each level, compute which child branch we took
+        for i in range(1, len(path)):
+            prev_depth, prev_idx = path[i - 1]
+            curr_depth, curr_idx = path[i]
+            
+            if curr_depth == prev_depth + 1:
+                # Which child of prev_idx leads to curr_idx?
+                # Children of node with index_in_level p are at indices p*k, p*k+1, ..., p*k+k-1
+                child_number = curr_idx - prev_idx * k
+                if 0 <= child_number < k:
+                    coloring[curr_depth] = child_number
+        
+        return coloring
     
     def hide_coloring_info(self):
         """Hide the coloring info panel (unless persistent)."""
@@ -245,6 +328,9 @@ class SearchTreeWidget(QGraphicsView):
         Build and draw a complete k-ary tree.
         viable_colorings: List of valid colorings to highlight as green leaves.
         """
+        # Store tree parameters for partial coloring extraction
+        self._tree_k = k
+        self._tree_depth = depth
 
         # Safety cap to avoid freezing the UI on large trees
         if depth > 0 and (k ** depth) > 2000:
@@ -368,7 +454,16 @@ class SearchTreeWidget(QGraphicsView):
                 # Mark leaves as viable or invalid
                 is_viable = (d == depth) and (node.id in viable_leaf_ids)
                 is_invalid = (d == depth) and (node.id not in viable_leaf_ids)
-                item = TreeNodeItem(node, radius=self.node_radius, is_viable=is_viable, is_invalid=is_invalid, parent_widget=self)
+                
+                # Find parent item for this node
+                parent_item = None
+                if d > 0:
+                    # Parent node is at depth d-1 with index_in_level = node.index_in_level // k
+                    parent_idx = node.index_in_level // k
+                    parent_node = levels[d - 1][parent_idx]
+                    parent_item = self._node_items.get(parent_node.id)
+                
+                item = TreeNodeItem(node, radius=self.node_radius, is_viable=is_viable, is_invalid=is_invalid, parent_widget=self, parent_item=parent_item)
                 pos = positions[node.id]
                 item.setPos(pos)
                 self.scene.addItem(item)
