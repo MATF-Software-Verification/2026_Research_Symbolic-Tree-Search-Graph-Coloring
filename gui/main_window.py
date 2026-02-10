@@ -446,6 +446,10 @@ class MainWindow(QMainWindow):
                 conflicts.append((u, v))
         return conflicts
 
+    def is_valid_coloring(self, coloring):
+        """Check if a coloring is valid (has no conflicts)."""
+        return len(self.find_conflict_edges(coloring)) == 0
+
     def highlight_conflict_edges(self, conflicts):
         """Highlight all conflicting edges at once."""
         self.graph_scene.highlight_edges(conflicts)
@@ -518,8 +522,8 @@ class MainWindow(QMainWindow):
                     num_nodes
                 )
                 
-                # Filter already blocked colorings
-                new_colorings = [c for c in colorings if c not in blocked]
+                # Filter already blocked colorings and invalid colorings
+                new_colorings = [c for c in colorings if c not in blocked and self.is_valid_coloring(c)]
                 
                 if not new_colorings:
                     print("  ✓ No new colorings found — done.")
