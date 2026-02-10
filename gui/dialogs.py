@@ -90,12 +90,18 @@ class CodeViewerDialog(QDialog):
         self.setWindowTitle("Generated C code")
         self.resize(800, 600)
 
+        # Don't block Main Window
+        self.setModal(False)
+        self.setWindowModality(Qt.NonModal)
+
+        self.setAttribute(Qt.WA_DeleteOnClose, True)
+
+
         layout = QVBoxLayout(self)
 
-        editor = QPlainTextEdit(self)
-        editor.setPlainText(code)
-        editor.setReadOnly(True)
-        editor.setStyleSheet("""
+        self.editor = QPlainTextEdit(self)
+        self.editor.setReadOnly(True)
+        self.editor.setStyleSheet("""
             QPlainTextEdit {
                 background-color: #1e1e1e;
                 color: #d4d4d4;
@@ -107,51 +113,24 @@ class CodeViewerDialog(QDialog):
         # monospaced font
         font = QFont("Courier New")
         font.setPointSize(11)
-        editor.setFont(font)
+        self.editor.setFont(font)
 
-        self._highlighter = self._CSyntaxHighlighter(editor.document())
+        self._highlighter = self._CSyntaxHighlighter(self.editor.document())
 
-        layout.addWidget(editor)
+        layout.addWidget(self.editor)
 
+        self.set_code(code)
 
-# class ColoringDetailsDialog(QDialog):
-#     """Dialog to display coloring details for a solution."""
-    
-#     coloring_selected = pyqtSignal(list)  # Signal emitted when dialog is shown
+    def set_code(self, code: str):
+        """Update displayed code"""
+        if code is None:
+            code = ""
 
-#     def __init__(self, coloring: List[int], parent=None):
-#         super().__init__(parent)
-#         self.coloring = coloring
-#         self.setWindowTitle("Coloring Details")
-#         self.setGeometry(100, 100, 350, 250)
-        
-#         layout = QVBoxLayout()
-#         layout.setContentsMargins(15, 15, 15, 15)
-#         layout.setSpacing(10)
-        
-#         # Title
-#         title = QLabel("Valid Coloring Found")
-#         title.setStyleSheet("font-weight: bold; font-size: 13px;")
-#         layout.addWidget(title, stretch=0)
-        
-#         # Coloring info
-#         info_text = ""
-#         for idx, color in enumerate(coloring):
-#             info_text += f"Node {idx}: Color {color}\n"
-        
-#         info = QLabel(info_text)
-#         info.setStyleSheet("font-family: monospace; font-size: 11px; padding: 8px; background-color: #f5f5f5; border-radius: 4px;")
-#         layout.addWidget(info, stretch=1)
-        
-#         # Close button
-#         close_btn = QPushButton("Close")
-#         close_btn.setMaximumWidth(100)
-#         close_btn.clicked.connect(self.accept)
-#         layout.addWidget(close_btn, stretch=0, alignment=Qt.AlignRight)
-        
-#         self.setLayout(layout)
-    
-#     def showEvent(self, event):
-#         """Emit signal when dialog is shown."""
-#         super().showEvent(event)
-#         self.coloring_selected.emit(self.coloring)
+        if self.editor.toPlainText() == code:
+            return
+
+        sb = self.editor.verticalScrollBar()
+        old_scroll = sb.value()
+
+        self.editor.setPlainText(code)
+        sb.setValue(old_scroll)

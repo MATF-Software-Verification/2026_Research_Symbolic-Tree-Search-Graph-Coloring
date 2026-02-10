@@ -42,6 +42,8 @@ class MainWindow(QMainWindow):
         # Store results
         self._colorings: List[List[int]] = []
         self._current_coloring_idx = 0
+
+        self._code_dialog = None
         
         # Setup UI
         self._setup_ui()
@@ -374,9 +376,24 @@ class MainWindow(QMainWindow):
         
         if self._generated_code is None:
             self._generated_code = self._generate_code()
+
+        if self._code_dialog is not None:
+            try:
+                self._code_dialog.set_code(self._generated_code)
+                self._code_dialog.raise_()
+                self._code_dialog.activateWindow()
+                return
+            except RuntimeError:
+                self._code_dialog = None
                 
-        dialog = CodeViewerDialog(self._generated_code, parent=self)
-        dialog.exec_()
+        
+        self._code_dialog = CodeViewerDialog(self._generated_code, parent=self)
+
+        self._code_dialog.destroyed.connect(lambda: setattr(self, "_code_dialog", None))
+
+        self._code_dialog.show()
+        self._code_dialog.raise_()
+        self._code_dialog.activateWindow()
     
     # KLEE Execution
     def _run_klee(self):
@@ -507,6 +524,12 @@ class MainWindow(QMainWindow):
             )
 
             self._generated_code = generator.c_code  # Store for potential display
+
+            if self._code_dialog is not None:
+                try:
+                    self._code_dialog.set_code(self._generated_code)
+                except RuntimeError:
+                    self._code_dialog = None
             
             # Save to temp file
             with tempfile.NamedTemporaryFile(mode='w', suffix='.c', delete=False) as f:
