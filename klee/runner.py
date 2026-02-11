@@ -26,14 +26,13 @@ class KleeRunner:
         self.clang_path = self._detect_clang()
 
         if shutil.which("klee") is None:
-            raise KleeRunnerError("klee nije na PATH-u.")
+            raise KleeRunnerError("KLEE not on the PATH")
         if self.verbose:
-            print(f"[INFO] Koristim clang: {self.clang_path}")
+            print(f"[INFO] Using clang: {self.clang_path}")
 
     def _detect_clang(self) -> str:
         """
         Find a KLEE-compatible clang for the current OS.
-        KLEE typically requires a specific LLVM version (14, 15, or 16).
         """
         system = platform.system()
         
@@ -154,17 +153,17 @@ class KleeRunner:
         if not c_path.exists():
             raise KleeRunnerError(f"C file does not exist: {c_path}")
 
-        # 1) create run dir
+        # 1) Create run dir
         work_dir = self.work_root / "latest"
         if work_dir.exists():
             shutil.rmtree(work_dir)
         work_dir.mkdir(parents=True, exist_ok=True)
 
-        # 2) copy c into work_dir
+        # 2) Copy c into work_dir
         local_c = work_dir / c_path.name
         shutil.copy2(c_path, local_c)
 
-        # 3) compile to bitcode
+        # 3) Compile to bitcode
         bc_file = work_dir / (local_c.stem + ".bc")
         klee_include = self._detect_klee_include()
         clang_cmd = [self.clang_path, "-I", klee_include, "-O0", "-g", "-emit-llvm", "-c", local_c.name, "-o", bc_file.name]
@@ -172,7 +171,7 @@ class KleeRunner:
         if proc.returncode != 0 or not bc_file.exists():
             raise KleeRunnerError(f"Clang compilation failed:\n{proc.stderr}")
 
-        # 4) run klee
+        # 4) Run klee
         args = []
         if klee_args:
             args.extend(klee_args)
@@ -182,7 +181,7 @@ class KleeRunner:
         if proc2.returncode != 0:
             raise KleeRunnerError(f"KLEE execution failed:\n{proc2.stderr}")
 
-        # 5) locate klee-out-*
+        # 5) Locate klee-out-*
         outs = sorted(work_dir.glob("klee-out-*"), key=lambda p: p.stat().st_mtime)
         if not outs:
             raise KleeRunnerError("No klee-out-* directory found. KLEE produced no output.")
