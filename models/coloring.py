@@ -39,6 +39,18 @@ UNCOLORED_NODE = QColor("#78909C")
 VIABLE_COLOR = QColor("#70C273")  # Green for viable solutions
 INVALID_COLOR = QColor("#F44336")  # Red for invalid solutions
 
+# Colors for info panel
+COLOR_VALID = "#2e7d32"           # Green
+COLOR_INVALID = "#c62828"         # Red
+COLOR_PARTIAL = "#1976d2"         # Blue
+COLOR_DARK_TEXT = "#333"          # Dark gray (node labels)
+COLOR_TITLE = "#222"              # Almost black (title)
+COLOR_MEDIUM_TEXT = "#555"        # Medium gray (labels)
+COLOR_CONFLICT_TEXT = "#111"      # Almost black (conflict value)
+COLOR_CLEAR_STATUS = "#666"       # Gray (cleared status)
+COLOR_SEPARATOR = "#ddd"          # Light gray (divider)
+COLOR_BORDER = "#333"             # Dark gray (border)
+
 class Theme:
     # Backgrounds
     BG_PRIMARY = QColor("#BEBEBE")      # Main window background
@@ -293,3 +305,11 @@ def get_display_color(color_index: int) -> QColor:
     # Generate color for indices beyond the palette
     hue = (color_index * 47) % 360
     return QColor.fromHsv(hue, 200, 200)
+
+def get_status_stylesheet(color: str) -> str:
+    """Build status label stylesheet."""
+    return f"font-size: 11px; font-weight: bold; color: {color};"
+
+def get_conflict_stylesheet() -> str:
+    """Build conflict label stylesheet."""
+    return f"font-size: 11px; font-weight: bold; color: {COLOR_CONFLICT_TEXT};"

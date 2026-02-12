@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import (
     QHBoxLayout, QSizePolicy, QGraphicsDropShadowEffect
 )
 
-from models.coloring import get_color_name, get_display_color
+from models.coloring import *
 
 class ColorCircleWidget(QWidget):
     """Small colored circle widget for displaying node colors."""
@@ -50,7 +50,7 @@ class NodeColorRow(QWidget):
         
         # Node label
         self.node_label = QLabel(f"Node {node_id}:")
-        self.node_label.setStyleSheet("color: #333; font-size: 11px;")
+        self.node_label.setStyleSheet(f"color: {COLOR_DARK_TEXT}; font-size: 11px;")
         self.node_label.setFixedWidth(55)
         layout.addWidget(self.node_label)
         
@@ -60,7 +60,7 @@ class NodeColorRow(QWidget):
         
         # Color name and value
         self.color_label = QLabel("—")
-        self.color_label.setStyleSheet("color: #333; font-size: 11px; font-weight: bold;")
+        self.color_label.setStyleSheet(f"color: {COLOR_DARK_TEXT}; font-size: 11px; font-weight: bold;")
         layout.addWidget(self.color_label)
         
         layout.addStretch()
@@ -91,13 +91,13 @@ class ColoringInfoPanel(QFrame):
         self.setObjectName("coloringInfoPanel")
         
         # Styling - white background with dark border
-        self.setStyleSheet("""
-            #coloringInfoPanel {
+        self.setStyleSheet(self.setStyleSheet(f"""
+            #coloringInfoPanel {{
                 background-color: rgba(255, 255, 255, 0.95);
-                border: 2px solid #333;
+                border: 2px solid {COLOR_BORDER};
                 border-radius: 6px;
-            }
-        """)
+            }}
+        """))
         
         # Shadow effect for depth
         shadow = QGraphicsDropShadowEffect()
@@ -114,7 +114,7 @@ class ColoringInfoPanel(QFrame):
         
         # Title
         self.title_label = QLabel("Coloring:")
-        self.title_label.setStyleSheet("font-weight: bold; font-size: 12px; color: #222;")
+        self.title_label.setStyleSheet(f"font-weight: bold; font-size: 12px; color: {COLOR_TITLE};")
         self.main_layout.addWidget(self.title_label)
         
         # Status line (Valid / Invalid)
@@ -122,7 +122,7 @@ class ColoringInfoPanel(QFrame):
         self.status_layout.setSpacing(4)
         
         self.status_text = QLabel("Status:")
-        self.status_text.setStyleSheet("font-size: 11px; color: #555;")
+        self.status_text.setStyleSheet(f"font-size: 11px; color: {COLOR_MEDIUM_TEXT};")
         self.status_value = QLabel("—")
         self.status_value.setStyleSheet("font-size: 11px; font-weight: bold;")
         
@@ -136,10 +136,10 @@ class ColoringInfoPanel(QFrame):
         self.conflict_layout.setSpacing(4)
 
         self.conflict_text = QLabel("Conflict:")
-        self.conflict_text.setStyleSheet("font-size: 11px; color: #555;")
+        self.conflict_text.setStyleSheet(f"font-size: 11px; color: {COLOR_MEDIUM_TEXT};")
 
         self.conflict_value = QLabel("—")
-        self.conflict_value.setStyleSheet("font-size: 11px; font-weight: bold; color: #111;")
+        self.conflict_value.setStyleSheet(get_conflict_stylesheet())
         self.conflict_value.setWordWrap(True)
 
         self.conflict_layout.addWidget(self.conflict_text)
@@ -149,7 +149,7 @@ class ColoringInfoPanel(QFrame):
         # Separator line
         separator = QFrame()
         separator.setFrameShape(QFrame.HLine)
-        separator.setStyleSheet("background-color: #ddd;")
+        separator.setStyleSheet(f"background-color: {COLOR_SEPARATOR};")
         separator.setFixedHeight(1)
         self.main_layout.addWidget(separator)
         
@@ -175,7 +175,7 @@ class ColoringInfoPanel(QFrame):
     def clear(self):
         """Clear the panel and hide it."""
         self.status_value.setText("—")
-        self.status_value.setStyleSheet("font-size: 11px; font-weight: bold; color: #666;")
+        self.status_value.setStyleSheet(get_status_stylesheet(COLOR_CLEAR_STATUS))
         
         self.conflict_value.setText("—")
         self.conflict_text.hide()
@@ -221,7 +221,7 @@ class ColoringInfoPanel(QFrame):
     def _set_status(self, status_text: str, color: str, show_conflict: bool = False):
         """Set status display with color."""
         self.status_value.setText(status_text)
-        self.status_value.setStyleSheet(f"font-size: 11px; font-weight: bold; color: {color};")
+        self.status_value.setStyleSheet(get_status_stylesheet(color))
         
         if not show_conflict:
             self.conflict_value.setText("—")
@@ -242,7 +242,7 @@ class ColoringInfoPanel(QFrame):
         # Build readable list
         parts = [f"({u}-{v}) same color {coloring[u]}" for u, v in conflicts]
         self.conflict_value.setText("; ".join(parts))
-        self.conflict_value.setStyleSheet("font-size: 11px; font-weight: bold; color: #c62828;")
+        self.conflict_value.setStyleSheet(get_conflict_stylesheet())
         self.conflict_text.show()
         self.conflict_value.show()
 
@@ -269,7 +269,7 @@ class ColoringInfoPanel(QFrame):
         Display a coloring in the panel.
         """
         self._set_status("Valid" if is_valid else "Invalid", 
-                        "#2e7d32" if is_valid else "#c62828")
+                        COLOR_VALID if is_valid else COLOR_INVALID)
         if not is_valid:
             self._set_conflict(coloring, conflict)
         else:
@@ -280,6 +280,6 @@ class ColoringInfoPanel(QFrame):
         """
         Display a partial coloring (for inner tree nodes) in the panel.
         """
-        self._set_status("Partial", "#1976d2")
+        self._set_status("Partial", COLOR_PARTIAL)
         self._set_conflict(None, None)
         self._update_node_rows(partial_coloring)
