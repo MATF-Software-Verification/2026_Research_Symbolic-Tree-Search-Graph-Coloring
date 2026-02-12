@@ -91,6 +91,11 @@ class TreeNodeItem(QGraphicsEllipseItem):
                 if partial_coloring is not None:
                     # Show partial coloring info - pass is_partial=True flag
                     self.parent_widget.show_partial_coloring_info(partial_coloring, persistent=True)
+                    
+                    # Reset node and edge colors
+                    if hasattr(self.parent_widget, 'main_window') and self.parent_widget.main_window:
+                        mw = self.parent_widget.main_window
+                        mw.clear_graph_coloring()
         
         super().mousePressEvent(event)
 
