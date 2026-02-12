@@ -96,7 +96,6 @@ class CodeViewerDialog(QDialog):
 
         self.setAttribute(Qt.WA_DeleteOnClose, True)
 
-
         layout = QVBoxLayout(self)
 
         self.editor = QPlainTextEdit(self)
@@ -108,7 +107,6 @@ class CodeViewerDialog(QDialog):
                 selection-background-color: #264f78;
             }
         """)
-
 
         # monospaced font
         font = QFont("Courier New")

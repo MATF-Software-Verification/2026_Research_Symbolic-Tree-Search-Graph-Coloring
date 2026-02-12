@@ -9,7 +9,6 @@ from PyQt5.QtWidgets import (
 
 from models.coloring import get_color_name, get_display_color
 
-
 class ColorCircleWidget(QWidget):
     """Small colored circle widget for displaying node colors."""
     
@@ -32,7 +31,6 @@ class ColorCircleWidget(QWidget):
         painter.setBrush(QBrush(self._color))
         painter.setPen(QPen(self._color.darker(130), 1))
         painter.drawEllipse(1, 1, self._size - 2, self._size - 2)
-
 
 class NodeColorRow(QWidget):
     """
@@ -70,9 +68,6 @@ class NodeColorRow(QWidget):
     def set_coloring(self, color_value: int):
         """
         Update the display for a given color value.
-        
-        Args:
-            color_value: The color index (0, 1, 2, ...)
         """
         color_name = get_color_name(color_value)
         display_color = get_display_color(color_value)
@@ -83,7 +78,6 @@ class NodeColorRow(QWidget):
             f"color: {display_color.darker(120).name()}; "
             f"font-size: 11px; font-weight: bold;"
         )
-
 
 class ColoringInfoPanel(QFrame):
     """
@@ -224,96 +218,68 @@ class ColoringInfoPanel(QFrame):
         self.resize(self.width(), height)
         self.adjustSize()
 
-    
-    def show_coloring(self, coloring: List[int], is_valid: bool, conflict=None):
-        """
-        Display a coloring in the panel.
-        """
-        # Update status with color coding
-        if is_valid:
-            self.status_value.setText("Valid")
-            self.status_value.setStyleSheet(
-                "font-size: 11px; font-weight: bold; color: #2e7d32;"
-            )
-        else:
-            self.status_value.setText("Invalid")
-            self.status_value.setStyleSheet(
-                "font-size: 11px; font-weight: bold; color: #c62828;"
-            )
-
-        # Conflict display (supports one tuple or list of tuples)
-        if (not is_valid) and conflict:
-            # normalize to list
-            if isinstance(conflict, tuple) and len(conflict) == 2:
-                conflicts = [conflict]
-            else:
-                conflicts = list(conflict)
-
-            # build readable list
-            parts = []
-            for (u, v) in conflicts:
-                cu = coloring[u]
-                parts.append(f"({u}-{v}) same color {cu}")
-
-            self.conflict_value.setText("; ".join(parts))
-            self.conflict_value.setStyleSheet("font-size: 11px; font-weight: bold; color: #c62828;")
-            self.conflict_text.show()
-            self.conflict_value.show()
-        else:
+    def _set_status(self, status_text: str, color: str, show_conflict: bool = False):
+        """Set status display with color."""
+        self.status_value.setText(status_text)
+        self.status_value.setStyleSheet(f"font-size: 11px; font-weight: bold; color: {color};")
+        
+        if not show_conflict:
             self.conflict_value.setText("—")
             self.conflict_text.hide()
             self.conflict_value.hide()
 
-
+    def _set_conflict(self, coloring: List[int], conflict):
+        """Display conflict information."""
+        if not conflict:
+            self.conflict_value.setText("—")
+            self.conflict_text.hide()
+            self.conflict_value.hide()
+            return
         
+        # Normalize to list of tuples
+        conflicts = [conflict] if isinstance(conflict, tuple) else list(conflict)
+        
+        # Build readable list
+        parts = [f"({u}-{v}) same color {coloring[u]}" for u, v in conflicts]
+        self.conflict_value.setText("; ".join(parts))
+        self.conflict_value.setStyleSheet("font-size: 11px; font-weight: bold; color: #c62828;")
+        self.conflict_text.show()
+        self.conflict_value.show()
+
+    def _update_node_rows(self, coloring: List[int]):
+        """Update node rows display."""
         # Clear existing rows
         for row in self._node_rows:
             self.nodes_layout.removeWidget(row)
             row.deleteLater()
         self._node_rows.clear()
         
-        # Add rows for each node
+        # Add new rows
         for node_id, color_value in enumerate(coloring):
             row = NodeColorRow(node_id)
             row.set_coloring(color_value)
             self.nodes_layout.addWidget(row)
             self._node_rows.append(row)
         
-        # Update height and show
         self._update_panel_height()
         self.show()
+    
+    def show_coloring(self, coloring: List[int], is_valid: bool, conflict=None):
+        """
+        Display a coloring in the panel.
+        """
+        self._set_status("Valid" if is_valid else "Invalid", 
+                        "#2e7d32" if is_valid else "#c62828")
+        if not is_valid:
+            self._set_conflict(coloring, conflict)
+        else:
+            self._set_conflict(None, None)
+        self._update_node_rows(coloring)
     
     def show_partial_coloring(self, partial_coloring: List[int]):
         """
         Display a partial coloring (for inner tree nodes) in the panel.
-        
-        Args:
-            partial_coloring: List of color values for nodes determined so far
         """
-        # Update status
-        self.status_value.setText("Partial")
-        self.status_value.setStyleSheet(
-            "font-size: 11px; font-weight: bold; color: #1976d2;"
-        )
-        
-        # No conflicts for partial colorings
-        self.conflict_value.setText("—")
-        self.conflict_text.hide()
-        self.conflict_value.hide()
-        
-        # Clear existing rows
-        for row in self._node_rows:
-            self.nodes_layout.removeWidget(row)
-            row.deleteLater()
-        self._node_rows.clear()
-        
-        # Add rows for each node with determined color
-        for node_id, color_value in enumerate(partial_coloring):
-            row = NodeColorRow(node_id)
-            row.set_coloring(color_value)
-            self.nodes_layout.addWidget(row)
-            self._node_rows.append(row)
-        
-        # Update height and show
-        self._update_panel_height()
-        self.show()
+        self._set_status("Partial", "#1976d2")
+        self._set_conflict(None, None)
+        self._update_node_rows(partial_coloring)
