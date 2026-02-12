@@ -6,6 +6,7 @@ from PyQt5.QtCore import Qt
 NODE_RADIUS = 22
 NODE_BORDER_WIDTH = 3
 EDGE_WIDTH = 3
+HIGHLIGHT_EDGE_WIDTH = EDGE_WIDTH + 2
 
 COLORING_PALETTE = [
     QColor("#E53935"),  # Red
@@ -37,7 +38,6 @@ COLOR_NAMES = [
 UNCOLORED_NODE = QColor("#78909C")
 VIABLE_COLOR = QColor("#70C273")  # Green for viable solutions
 INVALID_COLOR = QColor("#F44336")  # Red for invalid solutions
-
 
 class Theme:
     # Backgrounds

@@ -5,7 +5,6 @@ from PyQt5.QtGui import QPen
 from models.graph import Edge
 from models.coloring import EDGE_WIDTH, Theme
 
-
 class EdgeItem(QGraphicsLineItem):
     """
     Visual representation of a graph edge.
@@ -38,9 +37,6 @@ class EdgeItem(QGraphicsLineItem):
     def set_conflict(self, on: bool):
         if on:
             self.setPen(QPen(Qt.red, 4))
-       
-
-
 
 class TempEdgeItem(QGraphicsLineItem):
     """
@@ -69,3 +65,4 @@ class TempEdgeItem(QGraphicsLineItem):
             self.start_pos.x(), self.start_pos.y(),
             end_pos.x(), end_pos.y()
         )
+        

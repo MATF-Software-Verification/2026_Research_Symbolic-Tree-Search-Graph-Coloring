@@ -64,22 +64,3 @@ class GraphState:
             edges=[Edge(e.source, e.target) for e in self.edges],
             next_node_id=self.next_node_id
         )
-
-
-@dataclass
-class GraphData:
-    """
-    Data transfer object for graph information.
-    For communication between GUI and backend.
-    """
-    num_nodes: int
-    edges: List[Tuple[int, int]]
-    num_colors: int
-    
-    @classmethod
-    def from_state(cls, state: GraphState, num_colors: int) -> 'GraphData':
-        return cls(
-            num_nodes=len(state.nodes),
-            edges=[e.as_tuple() for e in state.edges],
-            num_colors=num_colors
-        )

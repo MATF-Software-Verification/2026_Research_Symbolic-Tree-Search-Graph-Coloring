@@ -8,7 +8,7 @@ from models.graph import Node, Edge, GraphState, Tool
 from .node_item import NodeItem
 from .edge_item import EdgeItem, TempEdgeItem
 from .actions import UndoRedoManager
-from models.coloring import Theme, EDGE_WIDTH
+from models.coloring import Theme, EDGE_WIDTH, HIGHLIGHT_EDGE_WIDTH
 
 
 class GraphScene(QGraphicsScene):
@@ -77,7 +77,9 @@ class GraphScene(QGraphicsScene):
     def get_tool(self) -> Tool:
         """Get the current tool."""
         return self._current_tool
-        
+    
+    #-----------------------State management---------------------------  
+      
     def _get_current_state(self) -> GraphState:
         """Get current graph state."""
         return GraphState(
@@ -104,20 +106,7 @@ class GraphScene(QGraphicsScene):
     
     def _restore_state(self, state: GraphState):
         """Restore graph to a saved state."""
-        # Make copies of item collections before iterating
-        # This prevents issues with modifying collections during iteration
-        node_items_to_remove = list(self._node_items.values())
-        edge_items_to_remove = list(self._edge_items)
-        
-        # Clear collections first
-        self._node_items.clear()
-        self._edge_items.clear()
-        
-        # Safely remove items from scene (edges first, then nodes)
-        for item in edge_items_to_remove:
-            self.removeItem(item)
-        for item in node_items_to_remove:
-            self.removeItem(item)
+        self._clear_scene_items()
         
         # Restore data
         self._nodes = [Node(n.id, n.x, n.y, n.color) for n in state.nodes]
@@ -144,7 +133,9 @@ class GraphScene(QGraphicsScene):
         # Save state with node at OLD position (before the move)
         old_state = self._get_state_with_node_at(node_id, old_pos)
         self._undo_manager.save_state(old_state)
+
     #-----------------------Undo/Redo---------------------------    
+        
     def undo(self):
         """Undo last action."""
         state = self._undo_manager.undo(self._get_current_state())
@@ -163,7 +154,8 @@ class GraphScene(QGraphicsScene):
     def can_redo(self) -> bool:
         return self._undo_manager.can_redo()
 
-    #-----------------------Node---------------------------       
+    #-----------------------Node---------------------------   
+        
     def add_node(self, x: float, y: float) -> Node:
         """Add a new node at the specified position."""
         self._save_state()
@@ -203,7 +195,9 @@ class GraphScene(QGraphicsScene):
             if node.id == node_id:
                 return node
         return None
-    #-----------------------Edge---------------------------       
+    
+    #-----------------------Edge---------------------------   
+        
     def add_edge(self, source_id: int, target_id: int) -> Optional[Edge]:
         """Add an edge between two nodes."""
         # Validate
@@ -268,6 +262,27 @@ class GraphScene(QGraphicsScene):
             self._temp_edge = None
     
     # Delete Node 
+    def _remove_node_visuals(self, node_id: int):
+        """Remove node and connected edges from scene and collections."""
+        edges_to_remove = [e for e in self._edges if e.source == node_id or e.target == node_id]
+        edge_items_to_remove = [item for item in self._edge_items 
+                                if item.edge.source == node_id or item.edge.target == node_id]
+        
+        for item in edge_items_to_remove:
+            self._edge_items.remove(item)
+            self.removeItem(item)
+        
+        for edge in edges_to_remove:
+            self._edges.remove(edge)
+        
+        node_to_remove = next((n for n in self._nodes if n.id == node_id), None)
+        if node_to_remove:
+            self._nodes.remove(node_to_remove)
+        
+        node_item = self._node_items.pop(node_id, None)
+        if node_item:
+            self.removeItem(node_item)
+
     def delete_node(self, node_id: int):
         """Delete a node and all its connected edges."""
         # Check if node exists
@@ -275,35 +290,7 @@ class GraphScene(QGraphicsScene):
             return
             
         self._save_state()
-        
-        # Find and remove connected edges
-        edges_to_remove = [e for e in self._edges if e.source == node_id or e.target == node_id]
-        edge_items_to_remove = [item for item in self._edge_items 
-                                if item.edge.source == node_id or item.edge.target == node_id]
-        
-        # Remove edge items from scene
-        for item in edge_items_to_remove:
-            self._edge_items.remove(item)
-            self.removeItem(item)
-        
-        # Remove edges from data
-        for edge in edges_to_remove:
-            self._edges.remove(edge)
-        
-        # Remove node from data
-        node_to_remove = None
-        for node in self._nodes:
-            if node.id == node_id:
-                node_to_remove = node
-                break
-        
-        if node_to_remove:
-            self._nodes.remove(node_to_remove)
-        
-        # Remove node item from scene
-        node_item = self._node_items.pop(node_id)
-        self.removeItem(node_item)
-        
+        self._remove_node_visuals(node_id)
         self.graph_changed.emit()
         
     def delete_selected_nodes(self):
@@ -329,37 +316,10 @@ class GraphScene(QGraphicsScene):
     
     def _delete_node_no_save(self, node_id: int):
         """Delete a node without saving state (for batch operations)."""
-        if node_id not in self._node_items:
-            return
-        
-        # Find and remove connected edges
-        edges_to_remove = [e for e in self._edges if e.source == node_id or e.target == node_id]
-        edge_items_to_remove = [item for item in self._edge_items 
-                                if item.edge.source == node_id or item.edge.target == node_id]
-        
-        # Remove edge items from scene
-        for item in edge_items_to_remove:
-            self._edge_items.remove(item)
-            self.removeItem(item)
-        
-        # Remove edges from data
-        for edge in edges_to_remove:
-            self._edges.remove(edge)
-        
-        # Remove node from data
-        node_to_remove = None
-        for node in self._nodes:
-            if node.id == node_id:
-                node_to_remove = node
-                break
-        
-        if node_to_remove:
-            self._nodes.remove(node_to_remove)
-        
-        # Remove node item from scene
-        node_item = self._node_items.pop(node_id)
-        self.removeItem(node_item)       
+        self._remove_node_visuals(node_id)    
+
     #-----------------------Clear---------------------------   
+    
     def clear_graph(self):
         """Clear all nodes and edges."""
         if not self._nodes and not self._edges:
@@ -367,27 +327,27 @@ class GraphScene(QGraphicsScene):
             
         self._save_state()
         
-        # Make copies of item collections before iterating
-        # This prevents segfault from modifying collections during iteration
-        node_items_to_remove = list(self._node_items.values())
-        edge_items_to_remove = list(self._edge_items)
-        
-        # Clear collections first
-        self._node_items.clear()
-        self._edge_items.clear()
         self._nodes.clear()
         self._edges.clear()
         self._next_node_id = 0
         
-        # Safely remove items from scene (edges first, then nodes)
+        self._clear_scene_items()
+            
+        self.graph_changed.emit()
+
+    def _clear_scene_items(self):
+        """Remove all visual items from scene."""
+        node_items_to_remove = list(self._node_items.values())
+        edge_items_to_remove = list(self._edge_items)
+        
+        self._node_items.clear()
+        self._edge_items.clear()
+        
         for item in edge_items_to_remove:
             self.removeItem(item)
         for item in node_items_to_remove:
             self.removeItem(item)
-            
-        self.graph_changed.emit()
         
-    
     # Reset colors             
     def reset_colors(self):
         """Reset all nodes to uncolored state."""
@@ -401,26 +361,34 @@ class GraphScene(QGraphicsScene):
         for item in self._edge_items:
             item.setPen(QPen(Theme.EDGE_DEFAULT, EDGE_WIDTH, Qt.SolidLine, Qt.RoundCap))
 
-    def highlight_edge(self, u: int, v: int):
-        """Highlight a specific edge (u,v) in red."""
-        self.reset_edge_styles()
+    def _find_edge_item(self, u: int, v: int) -> Optional[EdgeItem]:
+        """Find edge item connecting u and v (bidirectional)."""
         for item in self._edge_items:
             a, b = item.edge.source, item.edge.target
             if (a == u and b == v) or (a == v and b == u):
-                item.setPen(QPen(Theme.ACCENT_ERROR, EDGE_WIDTH + 2, Qt.SolidLine, Qt.RoundCap))
-                return
+                return item
+        return None
+
+    def _find_edge_items(self, edges) -> List[EdgeItem]:
+        """Find edge items for given edge list."""
+        edges_set = {tuple(sorted(e)) for e in edges}
+        return [
+            item for item in self._edge_items
+            if tuple(sorted((item.edge.source, item.edge.target))) in edges_set
+        ]
+
+    def highlight_edge(self, u: int, v: int):
+        """Highlight a specific edge (u,v) in red."""
+        self.reset_edge_styles()
+        item = self._find_edge_item(u, v)
+        if item:
+            item.setPen(QPen(Theme.ACCENT_ERROR, HIGHLIGHT_EDGE_WIDTH, Qt.SolidLine, Qt.RoundCap))
             
     def highlight_edges(self, edges):
         """Highlight multiple edges."""
         self.reset_edge_styles()
-        edges_set = {tuple(sorted(e)) for e in edges}
-
-        for item in self._edge_items:
-            a, b = item.edge.source, item.edge.target
-            if tuple(sorted((a, b))) in edges_set:
-                item.setPen(QPen(Qt.red, EDGE_WIDTH + 2, Qt.SolidLine, Qt.RoundCap))
-
-
+        for item in self._find_edge_items(edges):
+            item.setPen(QPen(Qt.red, HIGHLIGHT_EDGE_WIDTH, Qt.SolidLine, Qt.RoundCap))
                 
     # Export Data
     def get_edges_as_tuples(self) -> List[Tuple[int, int]]:

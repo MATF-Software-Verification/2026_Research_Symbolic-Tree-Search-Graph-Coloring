@@ -1,7 +1,6 @@
 from typing import List, Optional, Callable
 from models.graph import GraphState
 
-
 class UndoRedoManager:
     """
     Manages undo/redo operations for graph editing.
