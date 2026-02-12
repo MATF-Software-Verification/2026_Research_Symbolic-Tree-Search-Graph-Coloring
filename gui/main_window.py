@@ -483,7 +483,7 @@ class MainWindow(QMainWindow):
         sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         from klee.code_generator import CodeGenerator
         from klee.runner import KleeRunner
-        from klee.ktest_parser import parse_klee_results
+        from klee.ktest_parser import KTestParser
         
         num_nodes = self.graph_scene.node_count
         edges = self.graph_scene.get_edges_as_tuples()
@@ -542,10 +542,7 @@ class MainWindow(QMainWindow):
                 result = runner.run(c_file, timeout=30)
                 
                 # Parse results
-                colorings = parse_klee_results(
-                    str(result.klee_out_dir),
-                    num_nodes
-                )
+                colorings = KTestParser(str(result.klee_out_dir)).get_all_colorings(num_nodes)
                 
                 # Filter already blocked colorings and invalid colorings
                 new_colorings = [c for c in colorings if c not in blocked and self.is_valid_coloring(c)]
