@@ -5,7 +5,7 @@ from PyQt5.QtGui import QBrush, QPen, QFont, QPainter
 from PyQt5.QtWidgets import QGraphicsEllipseItem, QGraphicsLineItem, QGraphicsScene, QGraphicsTextItem, QGraphicsView
 
 from models.graph import TreeNode
-from models.coloring import Theme, VIABLE_COLOR, INVALID_COLOR
+from models.settings_constants import Theme, VIABLE_COLOR, INVALID_COLOR
 
 class TreeNodeItem(QGraphicsEllipseItem):
     def __init__(self, node: TreeNode, radius: float = 16.0, is_viable: bool = False, is_invalid: bool = False, parent_widget=None, parent_item=None):

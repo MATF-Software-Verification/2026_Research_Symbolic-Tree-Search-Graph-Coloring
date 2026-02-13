@@ -1,3 +1,11 @@
+import sys
+import os
+import tempfile
+
+from klee.code_generator import CodeGenerator
+from klee.runner import KleeRunner
+from klee.ktest_parser import KTestParser
+
 from typing import List, Optional
 from pathlib import Path
 
@@ -6,7 +14,7 @@ from PyQt5.QtWidgets import (
     QLabel, QPushButton, QSpinBox, QFrame, QMessageBox,
     QApplication
 )
-from PyQt5.QtCore import Qt, QSize
+from PyQt5.QtCore import Qt, QSize, QThreadPool
 from PyQt5.QtGui import QIcon
 
 from models.graph import Tool
@@ -15,8 +23,7 @@ from .graph_scene import GraphScene
 from .graph_view import GraphView
 from .tree_view import SearchTreeWidget
 from models.settings_constants import Styles, Fonts, Dimensions
-from klee.code_generator import CodeGenerator
-
+from models.klee_worker import KleeWorker, KleeWorkerSignals, KleeRunner, logger
 
 class MainWindow(QMainWindow):
 
@@ -41,6 +48,8 @@ class MainWindow(QMainWindow):
         self._current_coloring_idx = 0
 
         self._code_dialog = None
+
+        self._thread_pool = QThreadPool.globalInstance()
         
         # Setup UI
         self._setup_ui()
@@ -86,7 +95,7 @@ class MainWindow(QMainWindow):
         main_layout.addLayout(controls_layout)
         
         # Status bar
-        self.statusBar().showMessage("Ready. Press S to select, N to add nodes, E to add edges.")
+        self.statusBar().showMessage("Ready.")
         
     def _create_graph_editor_panel(self) -> QFrame:
         """Create the graph editor panel."""
@@ -130,9 +139,9 @@ class MainWindow(QMainWindow):
         # Tool buttons
         self._tool_buttons = {}
         tools = [
-            ("select", "S", Tool.SELECT, "Select (S) - Click to select, Delete to remove"),
-            ("node", "N", Tool.ADD_NODE, "Add Node (N)"),
-            ("edge", "E", Tool.ADD_EDGE, "Add Edge (E)"),
+            ("select", "S", Tool.SELECT, "Select - Click to select, Delete to remove"),
+            ("node", "N", Tool.ADD_NODE, "Add Node"),
+            ("edge", "E", Tool.ADD_EDGE, "Add Edge"),
         ]
         
         for icon_name, fallback_text, tool, tooltip in tools:
@@ -172,7 +181,6 @@ class MainWindow(QMainWindow):
         layout.addStretch()
         
         return layout
-
 
     def _create_icon_button(self, icon_name: str, fallback_text: str, tooltip: str) -> QPushButton:
         """
@@ -292,9 +300,8 @@ class MainWindow(QMainWindow):
         """Connect signals to slots."""
         self.graph_scene.graph_changed.connect(self._on_graph_changed)
         self.graph_scene.undo_manager.add_change_callback(self._update_undo_redo_state)
-        self.graph_scene.graph_changed.connect(self._on_graph_changed)
+        self.tree_view.leaf_clicked.connect(lambda _, col: self.apply_coloring_to_graph(col))
         
-    
     # Tool Management
     def _set_tool(self, tool: Tool):
         """Set the current tool."""
@@ -348,10 +355,7 @@ class MainWindow(QMainWindow):
         self._generated_code = None
         self.tree_view.clear_tree() 
             
-    # =========================================================================
     # Code Generation
-    # =========================================================================
-    
     def _generate_code(self) -> str:
         """Generate KLEE C code for current graph."""
         generator = CodeGenerator(
@@ -381,8 +385,7 @@ class MainWindow(QMainWindow):
                 self._code_dialog.activateWindow()
                 return
             except RuntimeError:
-                self._code_dialog = None
-                
+                self._code_dialog = None  
         
         self._code_dialog = CodeViewerDialog(self._generated_code, parent=self)
 
@@ -409,23 +412,59 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("Running KLEE...")
         QApplication.processEvents()
         
-        try:
-            self._execute_klee()
-        except ImportError as e:
-            QMessageBox.critical(
-                self, "Import Error",
-                f"Could not import required module: {e}\n\n"
-                "Make sure runner.py and ktest_parser.py are in the backend directory."
-            )
-        except Exception as e:
-            QMessageBox.critical(
-                self, "KLEE Error",
-                f"Error running KLEE:\n{str(e)}"
-            )
-        finally:
-            self._run_btn.setEnabled(True)
-            self._run_btn.setText("▶  RUN KLEE")
-    
+        # Build tree immediately (UI) - keep UI call in main thread
+        leaf_depth = self.graph_scene.node_count
+        k = max(1, self._colors_spin.value())
+        if hasattr(self, "tree_view") and self.tree_view is not None:
+            self.tree_view.build_full_tree(num_nodes=leaf_depth, k=k, viable_colorings=None)
+
+        # Start worker
+        worker = KleeWorker(num_nodes=leaf_depth,
+                            edges=self.graph_scene.get_edges_as_tuples(),
+                            num_colors=self._colors_spin.value())
+
+        worker.signals.found.connect(self._on_klee_found_coloring)
+        worker.signals.finished.connect(self._on_klee_finished)
+        worker.signals.error.connect(self._on_klee_error)
+
+        self._thread_pool.start(worker)
+
+    def _on_klee_found_coloring(self, coloring: List[int]):
+        """Handle one coloring emitted by worker (runs in main thread)."""
+        logger.info("Found coloring %s", coloring)
+        num_nodes = self.graph_scene.node_count
+        num_colors = self._colors_spin.value()
+        # Validate and store
+        if not self.is_valid_coloring(coloring):
+            return
+        # Update tree view via its public API 
+        if hasattr(self, "tree_view") and self.tree_view is not None:
+            try:
+                leaf_node_id = self.tree_view.get_leaf_node_id(coloring, num_nodes, num_colors)  
+            except Exception:
+                leaf_node_id = None
+            self.tree_view.mark_coloring_viable(coloring, k=max(1, self._colors_spin.value()), depth=self.graph_scene.node_count)
+            if leaf_node_id is not None:
+                self.tree_view.store_coloring(leaf_node_id, coloring)
+
+    def _on_klee_finished(self, all_colorings: List[List[int]]):
+        logger.info("KLEE finished, total %d", len(all_colorings))
+        self._colorings = all_colorings
+        self._run_btn.setEnabled(True)
+        self._run_btn.setText("RUN KLEE")
+        if all_colorings:
+            self._current_coloring_idx = 0
+            self.statusBar().showMessage(f"Found {len(all_colorings)} valid coloring(s)")
+        else:
+            self.statusBar().showMessage("No valid coloring found!")
+            self.graph_scene.reset_colors()
+
+    def _on_klee_error(self, msg: str):
+        logger.error("KLEE worker error: %s", msg)
+        QMessageBox.critical(self, "KLEE Error", msg)
+        self._run_btn.setEnabled(True)
+        self._run_btn.setText("RUN KLEE")
+
     def apply_coloring_to_graph(self, coloring: List[int]):
         """Apply a coloring solution to the graph nodes."""
         for idx, color_value in enumerate(coloring):
@@ -469,143 +508,3 @@ class MainWindow(QMainWindow):
     def highlight_conflict_edges(self, conflicts):
         """Highlight all conflicting edges at once."""
         self.graph_scene.highlight_edges(conflicts)
-
-
-    def _execute_klee(self):
-        """Execute KLEE incrementally to find ALL colorings."""
-        import sys
-        import os
-        import tempfile
-        
-        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        from klee.code_generator import CodeGenerator
-        from klee.runner import KleeRunner
-        from klee.ktest_parser import KTestParser
-        
-        num_nodes = self.graph_scene.node_count
-        edges = self.graph_scene.get_edges_as_tuples()
-        num_colors = self._colors_spin.value()
-
-        # ===== DRAW SEARCH TREE =====
-        leaf_depth = num_nodes  
-        k = max(1, num_colors)
-
-        # Build tree immediately (all gray) so we can see it fill up
-        if hasattr(self, "tree_view") and self.tree_view is not None:
-            self.tree_view.build_full_tree(num_nodes=leaf_depth, k=k, viable_colorings=None)
-            QApplication.processEvents()
-
-        # ===== TERMINAL OUTPUT =====
-        print("\n" + "=" * 60)
-        print("KLEE GRAPH COLORING")
-        print("=" * 60)
-        print(f"  Nodes: {num_nodes}")
-        print(f"  Edges: {edges}")
-        print(f"  Colors: {num_colors}")
-        print("=" * 60)
-        
-        blocked = []           # Already found colorings
-        all_colorings = []     # Final result
-        iteration = 0
-        # Generate code
-        while True:
-            iteration += 1
-            print(f"\n[ITERATION {iteration}]")
-            
-            # Generate code with blocked colorings
-            generator = CodeGenerator(
-                num_nodes=num_nodes,
-                edges=edges,
-                num_colors=num_colors,
-                blocked=blocked
-            )
-
-            self._generated_code = generator.c_code  # Store for potential display
-
-            if self._code_dialog is not None:
-                try:
-                    self._code_dialog.set_code(self._generated_code)
-                except RuntimeError:
-                    self._code_dialog = None
-            
-            # Save to temp file
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.c', delete=False) as f:
-                f.write(generator.c_code)
-                c_file = f.name
-            
-            try:
-                # Run KLEE
-                runner = KleeRunner(verbose=False)
-                result = runner.run(c_file, timeout=30)
-                
-                # Parse results
-                colorings = KTestParser(str(result.klee_out_dir)).get_all_colorings(num_nodes)
-                
-                # Filter already blocked colorings and invalid colorings
-                new_colorings = [c for c in colorings if c not in blocked and self.is_valid_coloring(c)]
-                
-                if not new_colorings:
-                    print("  ✓ No new colorings found — done.")
-                    break
-                
-                # Take one new coloring
-                coloring = new_colorings[0]
-                blocked.append(coloring)
-                all_colorings.append(coloring)
-                
-                # Mark this leaf node as viable in the tree and store coloring data
-                if hasattr(self, "tree_view") and self.tree_view is not None:
-                    leaf_node_id = self.tree_view._get_leaf_node_id(coloring, k, leaf_depth)
-                    self.tree_view.mark_coloring_viable(coloring, k, leaf_depth)
-                    self.tree_view.store_coloring(leaf_node_id, coloring)
-                
-                s = ", ".join(f"Node{idx}={val}" for idx, val in enumerate(coloring))
-                print(f"  ✓ Found: {s}")
-                print(f"    Total so far: {len(all_colorings)}")
-                
-                # Update UI
-                self.statusBar().showMessage(f"Finding colorings... ({len(all_colorings)} found)")
-                QApplication.processEvents()
-                
-            except Exception as e:
-                print(f"  ✗ KLEE error: {e}")
-                break
-            finally:
-                os.unlink(c_file)
-        # Store results
-        self._colorings = all_colorings
-        
-        # Print final results
-        print("\n" + "=" * 60)
-        print(f"TOTAL COLORINGS: {len(all_colorings)}")
-        print("=" * 60)
-
-        for i, c in enumerate(all_colorings, 1):
-            s = ", ".join(f"Node{idx}={val}" for idx, val in enumerate(c))
-            print(f"  {i:2d}. {s}")
-
-        # Verification
-        print("\n[VERIFICATION]")
-        all_valid = True
-        for c in all_colorings:
-            for (u, v) in edges:
-                if c[u] == c[v]:
-                    print(f"  ✗ INVALID: {c}")
-                    all_valid = False
-                    break
-        
-        if all_valid:
-            print("  ✓ All colorings are valid!")
-        
-        print("=" * 60 + "\n")
-        
-        # Update UI
-        if all_colorings:
-            self._current_coloring_idx = 0
-            self.statusBar().showMessage(f"Found {len(all_colorings)} valid coloring(s)")
-        else:
-            self.statusBar().showMessage("No valid coloring found!")
-            self.graph_scene.reset_colors()
-        
-        
-

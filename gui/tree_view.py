@@ -1,7 +1,7 @@
 from typing import Dict, List, Optional, Tuple, Set
 
-from PyQt5.QtCore import Qt, QPointF
-from PyQt5.QtGui import QBrush, QPen,  QPainter
+from PyQt5.QtCore import Qt, QPointF, pyqtSignal
+from PyQt5.QtGui import QBrush, QPen, QPainter
 from PyQt5.QtWidgets import QGraphicsLineItem, QGraphicsScene, QGraphicsView
 
 from .tree_node_item import TreeNodeItem
@@ -12,6 +12,8 @@ from models.settings_constants import *
 
 class SearchTreeWidget(QGraphicsView):
     """Simple k-ary tree renderer."""
+    # Signals
+    leaf_clicked = pyqtSignal(int, list)   # node_id, coloring
 
     def __init__(self, main_window=None, parent=None):
         self.scene = QGraphicsScene()
@@ -68,7 +70,7 @@ class SearchTreeWidget(QGraphicsView):
             leaf_index = leaf_index * k + c
         return leaf_index
 
-    def _get_leaf_node_id(self, coloring: List[int], k: int, depth: int) -> int:
+    def get_leaf_node_id(self, coloring: List[int], k: int, depth: int) -> int:
         """Get the node_id of the leaf corresponding to a coloring."""
         leaf_index = self._coloring_to_leaf_index(coloring, k)
         
@@ -307,7 +309,7 @@ class SearchTreeWidget(QGraphicsView):
         Mark the leaf node corresponding to a coloring as viable (green).
         Call this in real-time as each coloring is found.
         """
-        node_id = self._get_leaf_node_id(coloring, k, depth)
+        node_id = self.get_leaf_node_id(coloring, k, depth)
         if node_id in self._node_items:
             self._node_items[node_id].set_viable(True)
     
@@ -316,7 +318,7 @@ class SearchTreeWidget(QGraphicsView):
         Mark the leaf node corresponding to a coloring as invalid (red).
         Call this for colorings that were explored but failed constraints.
         """
-        node_id = self._get_leaf_node_id(coloring, k, depth)
+        node_id = self.get_leaf_node_id(coloring, k, depth)
         if node_id in self._node_items:
             self._node_items[node_id].set_invalid(True)
     
@@ -330,12 +332,13 @@ class SearchTreeWidget(QGraphicsView):
             coloring = self._coloring_map[node_id]
             is_valid = node_id in self._node_items and self._node_items[node_id].is_viable
             self.show_coloring_info(coloring, is_valid, conflict=None)
+            self.leaf_clicked.emit(node_id, coloring)
 
     def keyPressEvent(self, event):
         key = event.key()
         mods = event.modifiers()
 
-        # ===== ZOOM =====
+        # Zoom
         if mods & Qt.ControlModifier:
             # Ctrl + '+' 
             if key in (Qt.Key_Plus, Qt.Key_Equal):
@@ -355,7 +358,7 @@ class SearchTreeWidget(QGraphicsView):
                 event.accept()
                 return
 
-        # ===== PAN (ARROWS) =====
+        # Pan
         if key == Qt.Key_Left:
             self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - self._pan_step)
             event.accept()
