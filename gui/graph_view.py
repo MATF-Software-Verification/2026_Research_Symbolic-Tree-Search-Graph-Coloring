@@ -3,7 +3,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPainter
 
 from .graph_scene import GraphScene
-from models.coloring import Styles
+from models.settings_constants import Styles
 
 # Graph view widget for the graph editor.
 class GraphView(QGraphicsView):

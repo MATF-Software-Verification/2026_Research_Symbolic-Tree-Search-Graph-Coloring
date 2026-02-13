@@ -3,10 +3,7 @@ from PyQt5.QtCore import Qt, QPointF
 from PyQt5.QtGui import QPen, QBrush, QColor, QRadialGradient
 
 from models.graph import Node
-from models.coloring import (
-    NODE_RADIUS, NODE_BORDER_WIDTH, 
-    COLORING_PALETTE, UNCOLORED_NODE, Fonts
-)
+from models.settings_constants import *
 
 
 class NodeItem(QGraphicsEllipseItem):

@@ -1,14 +1,35 @@
 from PyQt5.QtGui import QColor, QFont
 from PyQt5.QtCore import Qt
-# Constants and configuration
+from typing import List
+
+# --- Layout / rendering constants ---
+NODE_RADIUS_DEFAULT = 16
+NODE_RADIUS_SMALL = 10
+NODE_RADIUS_MEDIUM = 12
+
+LEVEL_GAP_MIN = 40
+LEVEL_GAP_MAX = 140
+LEVEL_GAP_DEFAULT = 70
+
+BASE_GAP_MIN = 20
+BASE_GAP_MAX = 140
+BASE_GAP_DEFAULT = 50
+
+TREE_MARGIN_TOP = 40
+TREE_MARGIN_BOTTOM = 60
+TREE_MARGIN_LEFT = 40
+TREE_MARGIN_RIGHT = 40
+
+MAX_LEAVES_RENDER = 2000
 
 # Node and Edge Appearance
-NODE_RADIUS = 22
+# For graph editing panel
+NODE_RADIUS = 22 
 NODE_BORDER_WIDTH = 3
 EDGE_WIDTH = 3
 HIGHLIGHT_EDGE_WIDTH = EDGE_WIDTH + 2
 
-COLORING_PALETTE = [
+COLORING_PALETTE: List[QColor] = [
     QColor("#E53935"),  # Red
     QColor("#1E88E5"),  # Blue
     QColor("#43A047"),  # Green
@@ -22,16 +43,16 @@ COLORING_PALETTE = [
 ]
 
 COLOR_NAMES = [
-    "RED",        # 0
-    "BLUE",       # 1
-    "GREEN",      # 2
-    "ORANGE",     # 3
-    "PURPLE",     # 4
-    "CYAN",       # 5
-    "AMBER",      # 6
-    "BROWN",      # 7
-    "BLUE GREY",  # 8
-    "PINK",       # 9
+    "RED",
+    "BLUE",
+    "GREEN",
+    "ORANGE",
+    "PURPLE",
+    "CYAN",
+    "AMBER",
+    "BROWN",
+    "BLUE GREY",
+    "PINK",
 ]
 
 # Uncolored node color
@@ -136,7 +157,6 @@ class Dimensions:
     SPACING_SMALL = 5
     SPACING_MEDIUM = 10
     SPACING_LARGE = 20
-
 
 
 # Stylesheets
@@ -284,6 +304,7 @@ class Styles:
     @staticmethod
     def label_info():
         return f"color: {Theme.TEXT_SECONDARY.name()}; font-size: 12px;"
+
 
 def get_color_name(color_index: int) -> str:
     """

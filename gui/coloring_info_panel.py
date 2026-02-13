@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import (
     QHBoxLayout, QSizePolicy, QGraphicsDropShadowEffect
 )
 
-from models.coloring import *
+from models.settings_constants import *
 
 class ColorCircleWidget(QWidget):
     """Small colored circle widget for displaying node colors."""

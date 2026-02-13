@@ -8,7 +8,7 @@ from models.graph import Node, Edge, GraphState, Tool
 from .node_item import NodeItem
 from .edge_item import EdgeItem, TempEdgeItem
 from .actions import UndoRedoManager
-from models.coloring import Theme, EDGE_WIDTH, HIGHLIGHT_EDGE_WIDTH
+from models.settings_constants import Theme, EDGE_WIDTH, HIGHLIGHT_EDGE_WIDTH
 
 
 class GraphScene(QGraphicsScene):

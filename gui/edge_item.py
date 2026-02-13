@@ -3,7 +3,7 @@ from PyQt5.QtCore import Qt, QPointF
 from PyQt5.QtGui import QPen
 
 from models.graph import Edge
-from models.coloring import EDGE_WIDTH, Theme
+from models.settings_constants import EDGE_WIDTH, Theme
 
 class EdgeItem(QGraphicsLineItem):
     """

@@ -1,13 +1,10 @@
-import sys
-import os
-import tempfile
 from typing import List, Optional
 from pathlib import Path
 
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QSpinBox, QFrame, QMessageBox,
-    QApplication, QStatusBar
+    QApplication
 )
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QIcon
@@ -17,7 +14,7 @@ from .dialogs import CodeViewerDialog
 from .graph_scene import GraphScene
 from .graph_view import GraphView
 from .tree_view import SearchTreeWidget
-from models.coloring import Styles, Fonts, Dimensions
+from models.settings_constants import Styles, Fonts, Dimensions
 from klee.code_generator import CodeGenerator
 
 

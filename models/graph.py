@@ -64,3 +64,9 @@ class GraphState:
             edges=[Edge(e.source, e.target) for e in self.edges],
             next_node_id=self.next_node_id
         )
+
+@dataclass
+class TreeNode:
+    id: int
+    depth: int
+    index_in_level: int
