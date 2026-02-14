@@ -33,39 +33,56 @@ This transforms the NP-complete graph coloring problem into a **constraint satis
 
 ```
 2026_RESEARCH_SYMBOLIC_TREE_SEARCH_GRAPH_COLORING/
-├── main.py                     # Application entry point
-├── requirements.txt            # Python dependencies
+├── main.py                        # Application entry point
+├── requirements.txt               # Python dependencies
 ├── README.md
 ├── .gitignore
 │
-├── gui/                        # PyQt5 user interface
+├── gui/                            # PyQt5 user interface
 │   ├── __init__.py
-│   ├── main_window.py          # Main application window
-│   ├── graph_scene.py          # Graph canvas and interaction logic
-│   ├── graph_view.py           # Graph viewport widget
-│   ├── node_item.py            # Visual node representation
-│   ├── edge_item.py            # Visual edge representation
-│   ├── tree_view.py            # Search tree visualization
-│   ├── coloring_info_panel.py  # Information panel (accessibility)
-│   ├── dialogs.py              # Code viewer and other dialogs
-│   ├── actions.py              # UI action handlers
-│   └── icons/                  # Toolbar icons
-│       ├── node.png
-│       ├── edge.png
-│       ├── select.png
-│       ├── delete.png
-│       └── clear.png
+│   ├── main_window.py              # Main application window
+│   ├── actions.py                  # Undo/redo manager
+│   ├── dialogs.py                  # Code viewer dialog
+│   │
+│   ├── graph_editor/               # Graph editor panel (left)
+│   │   ├── __init__.py
+│   │   ├── graph_scene.py          # Graph canvas and interaction logic
+│   │   ├── graph_view.py           # Graph viewport widget
+│   │   ├── node_item.py            # Visual node representation
+│   │   └── edge_item.py            # Visual edge representation
+│   │
+│   └── search_tree/                # Search tree panel (right)
+│       ├── __init__.py
+│       ├── tree_view.py            # Search tree visualization widget
+│       ├── tree_node_item.py       # Visual tree node representation
+│       └── coloring_info_panel.py  # Coloring information panel
 │
-├── klee/                       # KLEE integration layer
+├── icons/                          # Toolbar icons (PNG/SVG)
+│   ├── node.png
+│   ├── edge.png
+│   ├── select.png
+│   ├── delete.png
+│   ├── clear.png
+|   ├── down.svg
+|   └── up.png
+|
+├── klee/                           # KLEE integration layer
 │   ├── __init__.py
-│   ├── code_generator.py       # Graph → C code translation
-│   ├── runner.py               # KLEE execution wrapper
-│   └── ktest_parser.py         # .ktest file parser
+│   ├── code_generator.py           # Graph → C code translation
+│   ├── runner.py                   # KLEE execution wrapper
+│   └── ktest_parser.py             # .ktest file parser
 │
-├── models/                     # Data models
-    ├── __init__.py
-    ├── graph.py                # Graph, Node, Edge classes
-    └── coloring.py             # Coloring logic
+├── models/                         # Data models
+|   ├── __init__.py
+|   ├── graph.py                    # Node, Edge, GraphState, TreeNode, Tool classes
+|   ├── klee_worker.py              # Background KLEE execution (QRunnable)
+|   ├── settings.py                 # Theme, colors, fonts, dimensions, styles
+|   └── tree_layout.py              # Search tree layout computation
+|
+├── screenshots/                    # Gallery
+    ├── view.png
+    ├── show_code.png
+    └── demo.mp4
 ```
 
 ## Installation
@@ -131,6 +148,20 @@ The coloring information panel provides textual descriptions of all color assign
 - **Colorblind users** can understand which colors are assigned to which nodes
 - **Screen reader users** can access the coloring information
 - Color is never the *sole* means of conveying information
+
+## Screenshots
+
+### Graph Editor & Search Tree
+![Application View](screenshots/view.png)
+*Simple graph with 2 nodes and 3 colors. The search tree shows all 9 possible colorings — 6 valid (green) and 3 invalid (red). Clicking a valid leaf applies the coloring to the graph.*
+
+### Generated C Code & Conflict Detection
+![Show Code View](screenshots/show_code.png)
+*A 4-node graph with the generated KLEE C code visible. The info panel shows an invalid coloring with conflict detection: nodes 1 and 0 have the same color (1). Previously found colorings are blocked in the C code.*
+
+## Demo
+
+![Demo](screenshots/demo.mp4)
 
 ## License
 

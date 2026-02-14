@@ -17,10 +17,10 @@ from PyQt5.QtGui import QIcon
 
 from models.graph import Tool
 from .dialogs import CodeViewerDialog
-from .graph_scene import GraphScene
-from .graph_view import GraphView
-from .tree_view import SearchTreeWidget
-from models.settings_constants import Styles, Fonts, Dimensions
+from .graph_editor.graph_scene import GraphScene
+from .graph_editor.graph_view import GraphView
+from .search_tree.tree_view import SearchTreeWidget
+from models.settings import Styles, Fonts, Dimensions
 from models.klee_worker import KleeWorker, KleeWorkerSignals, KleeRunner, logger
 
 class MainWindow(QMainWindow):
