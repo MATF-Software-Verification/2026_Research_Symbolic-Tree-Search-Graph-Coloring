@@ -253,10 +253,9 @@ class Styles:
             }}
         """
     
-    @staticmethod
     def spin_box():
-        return f"""
-            QSpinBox {{
+        return """
+            QSpinBox {
                 font-size: 18px;
                 font-weight: bold;
                 color: #000000;
@@ -264,26 +263,43 @@ class Styles:
                 border: 2px solid #CCCCCC;
                 border-radius: 8px;
                 background: #FFFFFF;
-            }}
-            QSpinBox:focus {{
+            }
+
+            QSpinBox:focus {
                 border-color: #2196F3;
-            }}
-            QSpinBox::up-button{{
+            }
+
+            QSpinBox::up-button {
                 width: 20px;
                 border-left: 1px solid #CCCCCC;
                 border-bottom: 1px solid #CCCCCC;
                 background: #F5F5F5;
                 border-top-right-radius: 6px;
-            }}
-            QSpinBox::down-button {{
+            }
+
+            QSpinBox::down-button {
                 width: 20px;
                 border-left: 1px solid #CCCCCC;
                 background: #F5F5F5;
                 border-bottom-right-radius: 6px;
-            }}
-            QSpinBox::up-button:hover, QSpinBox::down-button:hover{{
+            }
+
+            QSpinBox::up-button:hover,
+            QSpinBox::down-button:hover {
                 background: #E3F2FD;
-            }}
+            }
+
+            QSpinBox::up-arrow {
+                image: url(icons/up.png);
+                width: 10px;
+                height: 10px;
+            }
+
+            QSpinBox::down-arrow {
+                image: url(icons/down.svg);
+                width: 10px;
+                height: 10px;
+            }
         """
     
     @staticmethod
