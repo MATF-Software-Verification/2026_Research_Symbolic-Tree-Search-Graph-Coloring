@@ -50,6 +50,8 @@ class MainWindow(QMainWindow):
         self._code_dialog = None
 
         self._thread_pool = QThreadPool.globalInstance()
+
+        self._active_worker = None
         
         # Setup UI
         self._setup_ui()
@@ -339,6 +341,7 @@ class MainWindow(QMainWindow):
         
     def _clear_graph(self):
         """Clear the graph with confirmation."""
+        self._cancel_klee_execution()  # Ensure any running KLEE process is stopped
         self.graph_scene.clear_graph()
         self._colorings.clear()
         self._generated_code = None
@@ -347,6 +350,7 @@ class MainWindow(QMainWindow):
                 
     def _on_graph_changed(self):
         """Handle graph structure changes."""
+        self._cancel_klee_execution()  # Ensure any running KLEE process is stopped
         # Clear old results when graph changes
         if self._colorings:
             self._colorings.clear()
@@ -403,32 +407,40 @@ class MainWindow(QMainWindow):
         if self.graph_scene.edge_count == 0:
             QMessageBox.warning(self, "No Edges", "Please add some edges to the graph.")
             return
-            
-        # Disable button during execution
-        self._run_btn.setEnabled(False)
-        self._run_btn.setText("Running...")
-        self.statusBar().showMessage("Running KLEE...")
-        QApplication.processEvents()
         
         # Build tree immediately (UI) - keep UI call in main thread
         leaf_depth = self.graph_scene.node_count
         k = max(1, self._colors_spin.value())
         if hasattr(self, "tree_view") and self.tree_view is not None:
-            self.tree_view.build_full_tree(num_nodes=leaf_depth, k=k, viable_colorings=None)
+            built = self.tree_view.build_full_tree(num_nodes=leaf_depth, k=k, viable_colorings=None)
+            if not built:
+                QMessageBox.warning(self, "Tree Too Large", "The search tree is too large to render. KLEE not run.")
+                return
+
+        # Disable button during execution
+        self._run_btn.setEnabled(False)
+        self._run_btn.setText("Running...")
+        self.statusBar().showMessage("Running KLEE...")
+        QApplication.processEvents()
 
         # Start worker
         worker = KleeWorker(num_nodes=leaf_depth,
                             edges=self.graph_scene.get_edges_as_tuples(),
                             num_colors=self._colors_spin.value())
 
+        self._active_worker = worker
+
         worker.signals.found.connect(self._on_klee_found_coloring)
         worker.signals.finished.connect(self._on_klee_finished)
         worker.signals.error.connect(self._on_klee_error)
+        worker.signals.cancelled.connect(self._on_klee_cancelled)
 
         self._thread_pool.start(worker)
 
     def _on_klee_found_coloring(self, coloring: List[int]):
         """Handle one coloring emitted by worker (runs in main thread)."""
+        if self._active_worker is None:
+            return # Ignore if no active worker (e.g. after cancellation)
         logger.info("Found coloring %s", coloring)
         num_nodes = self.graph_scene.node_count
         num_colors = self._colors_spin.value()
@@ -477,6 +489,18 @@ class MainWindow(QMainWindow):
         QMessageBox.critical(self, "KLEE Error", msg)
         self._run_btn.setEnabled(True)
         self._run_btn.setText("RUN KLEE")
+
+    def _on_klee_cancelled(self):
+        self.statusBar().showMessage("KLEE run cancelled")
+        self._run_btn.setEnabled(True)
+        self._run_btn.setText("RUN KLEE")
+
+    def _cancel_klee_execution(self):
+        if self._active_worker is not None:
+            self._active_worker.cancel()
+            self._active_worker = None
+        
+        self._on_klee_cancelled()
 
     def apply_coloring_to_graph(self, coloring: List[int]):
         """Apply a coloring solution to the graph nodes."""

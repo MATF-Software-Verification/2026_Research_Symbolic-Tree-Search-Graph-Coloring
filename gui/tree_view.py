@@ -223,6 +223,7 @@ class SearchTreeWidget(QGraphicsView):
         """
         Build and draw a complete k-ary tree.
         viable_colorings: List of valid colorings to highlight as green leaves.
+        Returns an indiciatior of whether the tree was rendered (False if skipped due to size).
         """
         # Store tree parameters for partial coloring extraction
         self._tree_k = k
@@ -232,7 +233,7 @@ class SearchTreeWidget(QGraphicsView):
         if num_nodes > 0 and (k ** num_nodes) > MAX_LEAVES_RENDER:
             print(f"[WARN] Tree too large to render (k={k}, depth={num_nodes}, leaves={k**num_nodes}). Skipping.")
             self.clear_tree()
-            return
+            return False
 
         self.clear_tree()
 
@@ -303,6 +304,7 @@ class SearchTreeWidget(QGraphicsView):
             self.fitInView(self.scene.sceneRect(), Qt.KeepAspectRatio)
 
         self.setFocus()
+        return True
     
     def mark_coloring_viable(self, coloring: List[int], k: int, depth: int):
         """

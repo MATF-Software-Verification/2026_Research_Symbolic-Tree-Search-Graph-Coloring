@@ -30,6 +30,8 @@ class KleeRunner:
         if self.verbose:
             print(f"[INFO] Using clang: {self.clang_path}")
 
+        self._process = None
+
     def _detect_clang(self) -> str:
         """
         Find a KLEE-compatible clang for the current OS.
@@ -96,16 +98,38 @@ class KleeRunner:
             print("[CMD]", " ".join(cmd))
             print("[CWD]", cwd)
 
-        return subprocess.run(
+        self._process = subprocess.Popen(
             cmd,
             cwd=str(cwd),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            timeout=timeout,
-            check=False,
+        )
+
+        try:
+            stdout, stderr = self._process.communicate(timeout=timeout)
+            returncode = self._process.returncode
+        except subprocess.TimeoutExpired:
+            self._process.kill()
+            stdout, stderr = self._process.communicate()
+            raise KleeRunnerError("Process timeout")
+        finally:
+            self._process = None
+
+        return subprocess.CompletedProcess(
+            args=cmd,
+            returncode=returncode,
+            stdout=stdout,
+            stderr=stderr
         )
     
+    def terminate(self):
+        if self._process is not None:
+            try:
+                self._process.kill()
+            except Exception:
+                pass
+
     def _detect_klee_include(self) -> str:
 
         system = platform.system()

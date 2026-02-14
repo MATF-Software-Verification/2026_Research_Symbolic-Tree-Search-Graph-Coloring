@@ -2,6 +2,7 @@ from typing import List, Tuple
 import os
 import tempfile
 import logging
+import threading
 
 from PyQt5.QtCore import QObject, pyqtSignal, QRunnable, pyqtSlot
 from klee.runner import KleeRunner
@@ -14,7 +15,7 @@ class KleeWorkerSignals(QObject):
     found = pyqtSignal(list)      # Single coloring found
     finished = pyqtSignal(list)   # All colorings
     error = pyqtSignal(str)
-    progress = pyqtSignal(int)    # Optional progress updates
+    cancelled = pyqtSignal()
 
 class KleeWorker(QRunnable):
     def __init__(self, num_nodes: int, edges: List[Tuple[int,int]], num_colors: int, timeout: int = 30):
@@ -24,6 +25,22 @@ class KleeWorker(QRunnable):
         self.edges = edges
         self.num_colors = num_colors
         self.timeout = timeout
+        self._cancel_event = threading.Event()
+        self._runner = None
+
+    def cancel(self):
+        logger.info("KLEE worker cancel requested")
+        self._cancel_event.set()
+
+        # If the runner has a subprocess, terminate it
+        if self._runner is not None:
+            try:
+                self._runner.terminate()
+            except Exception:
+                pass
+
+    def is_cancelled(self):
+        return self._cancel_event.is_set()
 
     @pyqtSlot()
     def run(self):
@@ -32,9 +49,10 @@ class KleeWorker(QRunnable):
             all_colorings = []
             iteration = 0
 
-            while True:
+            while not self.is_cancelled():
                 iteration += 1
                 logger.info("KLEE iteration %d", iteration)
+
                 gen = CodeGenerator(
                     num_nodes=self.num_nodes,
                     edges=self.edges,
@@ -42,31 +60,49 @@ class KleeWorker(QRunnable):
                     blocked=blocked
                 )
 
-                # Write temp file
                 with tempfile.NamedTemporaryFile(mode='w', suffix='.c', delete=False) as f:
                     f.write(gen.c_code)
                     c_file = f.name
 
                 try:
-                    runner = KleeRunner(verbose=False)
-                    result = runner.run(c_file, timeout=self.timeout)
+                    if self.is_cancelled():
+                        break
+
+                    self._runner = KleeRunner(verbose=False)
+                    result = self._runner.run(c_file, timeout=self.timeout)
+
+                    if self.is_cancelled():
+                        break
+
                     colorings = KTestParser(str(result.klee_out_dir)).get_all_colorings(self.num_nodes)
-                    # Filter duplicates/invalidity left to caller; here we assume parser returns explicit colorings
+
                     new = [c for c in colorings if c not in blocked]
                     if not new:
                         logger.info("No new colorings found, finishing")
                         break
+
                     for c in new:
+                        if self.is_cancelled():
+                            break
                         blocked.append(c)
                         all_colorings.append(c)
                         self.signals.found.emit(c)
+
                 finally:
+                    self._runner = None
                     try:
                         os.unlink(c_file)
                     except Exception:
                         pass
 
+            if self.is_cancelled():
+                logger.info("KLEE worker cancelled")
+                self.signals.cancelled.emit()
+                return
+
             self.signals.finished.emit(all_colorings)
+
         except Exception as e:
-            logger.exception("KLEE worker error")
-            self.signals.error.emit(str(e))
+            if not self.is_cancelled():
+                logger.exception("KLEE worker error")
+                self.signals.error.emit(str(e))
