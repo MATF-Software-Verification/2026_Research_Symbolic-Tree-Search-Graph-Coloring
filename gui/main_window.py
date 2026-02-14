@@ -414,7 +414,7 @@ class MainWindow(QMainWindow):
         if hasattr(self, "tree_view") and self.tree_view is not None:
             built = self.tree_view.build_full_tree(num_nodes=leaf_depth, k=k, viable_colorings=None)
             if not built:
-                QMessageBox.warning(self, "Tree Too Large", "The search tree is too large to render. KLEE not run.")
+                QMessageBox.warning(self, "Tree Too Large", "The search tree is too large to render.\nUpper limit is 2000 leaves.\nKLEE not run.")
                 return
 
         # Disable button during execution
@@ -441,13 +441,14 @@ class MainWindow(QMainWindow):
         """Handle one coloring emitted by worker (runs in main thread)."""
         if self._active_worker is None:
             return # Ignore if no active worker (e.g. after cancellation)
-        logger.info("Found coloring %s", coloring)
-        num_nodes = self.graph_scene.node_count
-        num_colors = self._colors_spin.value()
 
         # Validate and store
         if not self.is_valid_coloring(coloring):
             return
+
+        logger.info("Found coloring %s", coloring)
+        num_nodes = self.graph_scene.node_count
+        num_colors = self._colors_spin.value()
         
         # Add to colorings list
         self._colorings.append(coloring)
@@ -473,15 +474,16 @@ class MainWindow(QMainWindow):
                 self.tree_view.store_coloring(leaf_node_id, coloring)
 
     def _on_klee_finished(self, all_colorings: List[List[int]]):
-        logger.info("KLEE finished, total %d", len(all_colorings))
-        self._colorings = all_colorings
+        valid_colorings = [col for col in all_colorings if self.is_valid_coloring(col)]
+        logger.info("KLEE finished, total %d", len(valid_colorings))
+        self._colorings = valid_colorings
         self._run_btn.setEnabled(True)
         self._run_btn.setText("RUN KLEE")
-        if all_colorings:
+        if valid_colorings:
             self._current_coloring_idx = 0
-            self.statusBar().showMessage(f"Found {len(all_colorings)} valid coloring(s)")
+            self.statusBar().showMessage(f"Found {len(valid_colorings)} valid coloring(s)")
         else:
-            self.statusBar().showMessage("No valid coloring found!")
+            self.statusBar().showMessage("No valid colorings found!")
             self.graph_scene.reset_colors()
 
     def _on_klee_error(self, msg: str):
