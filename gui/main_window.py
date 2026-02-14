@@ -356,12 +356,13 @@ class MainWindow(QMainWindow):
         self.tree_view.clear_tree() 
             
     # Code Generation
-    def _generate_code(self) -> str:
+    def _generate_code(self, blocked: List[List[int]] = None) -> str:
         """Generate KLEE C code for current graph."""
         generator = CodeGenerator(
-            num_nodes=self.graph_scene.node_count,
-            edges=self.graph_scene.get_edges_as_tuples(),
-            num_colors=self._colors_spin.value()
+            num_nodes = self.graph_scene.node_count,
+            edges = self.graph_scene.get_edges_as_tuples(),
+            num_colors = self._colors_spin.value(),
+            blocked = blocked or []
         )
         return generator.c_code
   
@@ -375,8 +376,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "No Edges", "Please add some edges to the graph.")
             return
         
-        if self._generated_code is None:
-            self._generated_code = self._generate_code()
+        self._generated_code = self._generate_code(blocked=self._colorings)
 
         if self._code_dialog is not None:
             try:
@@ -388,9 +388,7 @@ class MainWindow(QMainWindow):
                 self._code_dialog = None  
         
         self._code_dialog = CodeViewerDialog(self._generated_code, parent=self)
-
         self._code_dialog.destroyed.connect(lambda: setattr(self, "_code_dialog", None))
-
         self._code_dialog.show()
         self._code_dialog.raise_()
         self._code_dialog.activateWindow()
@@ -434,9 +432,24 @@ class MainWindow(QMainWindow):
         logger.info("Found coloring %s", coloring)
         num_nodes = self.graph_scene.node_count
         num_colors = self._colors_spin.value()
+
         # Validate and store
         if not self.is_valid_coloring(coloring):
             return
+        
+        # Add to colorings list
+        self._colorings.append(coloring)
+        
+        # Update generated code with current blocked colorings
+        self._generated_code = self._generate_code(blocked=self._colorings)
+        
+        # Update code dialog if it's open
+        if self._code_dialog is not None:
+            try:
+                self._code_dialog.set_code(self._generated_code)
+            except RuntimeError:
+                self._code_dialog = None
+
         # Update tree view via its public API 
         if hasattr(self, "tree_view") and self.tree_view is not None:
             try:
