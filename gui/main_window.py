@@ -1,6 +1,4 @@
-import sys
-import os
-import tempfile
+from typing import List, Optional, Dict, Tuple
 
 from klee.code_generator import CodeGenerator
 from klee.runner import KleeRunner
@@ -51,6 +49,10 @@ class MainWindow(QMainWindow):
 
         self._thread_pool = QThreadPool.globalInstance()
 
+        # Node ID mapping for KLEE (old_id -> new_consecutive_id)
+        self._node_id_mapping: Dict[int, int] = {}
+        self._reverse_mapping: Dict[int, int] = {}  # new_id -> old_id
+        
         self._active_worker = None
         
         # Setup UI
@@ -357,14 +359,23 @@ class MainWindow(QMainWindow):
 
         self.clear_graph_coloring()
         self._generated_code = None
+        self._node_id_mapping = {}
+        self._reverse_mapping = {}
         self.tree_view.clear_tree() 
             
     # Code Generation
     def _generate_code(self, blocked: List[List[int]] = None) -> str:
         """Generate KLEE C code for current graph."""
+        # Remap edges if mapping exists
+        original_edges = self.graph_scene.get_edges_as_tuples()
+        if self._node_id_mapping:
+            remapped_edges = self._remap_edges(original_edges, self._node_id_mapping)
+        else:
+            remapped_edges = original_edges
+
         generator = CodeGenerator(
             num_nodes = self.graph_scene.node_count,
-            edges = self.graph_scene.get_edges_as_tuples(),
+            edges = remapped_edges,
             num_colors = self._colors_spin.value(),
             blocked = blocked or []
         )
@@ -397,6 +408,24 @@ class MainWindow(QMainWindow):
         self._code_dialog.raise_()
         self._code_dialog.activateWindow()
     
+    def _create_node_mapping(self) -> Tuple[Dict[int, int], Dict[int, int]]:
+        """
+        Create mapping from actual node IDs to consecutive IDs for KLEE.
+        Returns (old_to_new, new_to_old) mappings.
+        """
+        # Get sorted list of actual node IDs
+        actual_ids = sorted(node.id for node in self.graph_scene._nodes)
+        
+        # Create mappings
+        old_to_new = {old_id: new_id for new_id, old_id in enumerate(actual_ids)}
+        new_to_old = {new_id: old_id for new_id, old_id in enumerate(actual_ids)}
+        
+        return old_to_new, new_to_old
+
+    def _remap_edges(self, edges: List[Tuple[int, int]], mapping: Dict[int, int]) -> List[Tuple[int, int]]:
+        """Remap edge node IDs using the provided mapping."""
+        return [(mapping[u], mapping[v]) for u, v in edges]
+
     # KLEE Execution
     def _run_klee(self):
         """Run KLEE to find graph colorings."""
@@ -408,6 +437,9 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "No Edges", "Please add some edges to the graph.")
             return
         
+        # Create node ID mapping for non-consecutive IDs
+        self._node_id_mapping, self._reverse_mapping = self._create_node_mapping()
+
         # Build tree immediately (UI) - keep UI call in main thread
         leaf_depth = self.graph_scene.node_count
         k = max(1, self._colors_spin.value())
@@ -423,9 +455,13 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("Running KLEE...")
         QApplication.processEvents()
 
+        # Remap edges to consecutive node IDs
+        original_edges = self.graph_scene.get_edges_as_tuples()
+        remapped_edges = self._remap_edges(original_edges, self._node_id_mapping)
+
         # Start worker
         worker = KleeWorker(num_nodes=leaf_depth,
-                            edges=self.graph_scene.get_edges_as_tuples(),
+                            edges=remapped_edges,
                             num_colors=self._colors_spin.value())
 
         self._active_worker = worker
@@ -506,12 +542,18 @@ class MainWindow(QMainWindow):
 
     def apply_coloring_to_graph(self, coloring: List[int]):
         """Apply a coloring solution to the graph nodes."""
-        for idx, color_value in enumerate(coloring):
+        # coloring[i] is the color for consecutive node index i
+        # We need to map back to actual node IDs
+        for new_id, color_value in enumerate(coloring):
             # Find node with id=idx and set its color
-            for node in self.graph_scene._nodes:
-                if node.id == idx:
-                    node.color = color_value
-                    break
+            # Get the actual node ID from the reverse mapping
+            if new_id in self._reverse_mapping:
+                actual_node_id = self._reverse_mapping[new_id]
+                # Find node with actual ID and set its color
+                for node in self.graph_scene._nodes:
+                    if node.id == actual_node_id:
+                        node.color = color_value
+                        break
         
         # Update all node visuals
         for node_item in self.graph_scene._node_items.values():
@@ -535,9 +577,27 @@ class MainWindow(QMainWindow):
     def find_conflict_edges(self, coloring):
         """Return a list of all conflicting edges (u,v)."""
         conflicts = []
-        for (u, v) in self.graph_scene.get_edges_as_tuples():
-            if coloring[u] == coloring[v]:
-                conflicts.append((u, v))
+
+        # Use remapped edges for checking conflicts
+        original_edges = self.graph_scene.get_edges_as_tuples()
+
+        for (u, v) in original_edges:
+            # Map original node IDs to consecutive indices used in coloring
+            if self._node_id_mapping:
+                u_mapped = self._node_id_mapping.get(u)
+                v_mapped = self._node_id_mapping.get(v)
+                if u_mapped is None or v_mapped is None:
+                    continue  # Skip if node not in mapping
+            else:
+                u_mapped, v_mapped = u, v
+            
+            # Check bounds
+            if u_mapped >= len(coloring) or v_mapped >= len(coloring):
+                continue
+                
+            if coloring[u_mapped] == coloring[v_mapped]:
+                conflicts.append((u, v))  # Return original IDs for highlighting
+
         return conflicts
 
     def is_valid_coloring(self, coloring):
