@@ -440,7 +440,7 @@ class MainWindow(QMainWindow):
         # Update tree view via its public API 
         if hasattr(self, "tree_view") and self.tree_view is not None:
             try:
-                leaf_node_id = self.tree_view.get_leaf_node_id(coloring, num_nodes, num_colors)  
+                leaf_node_id = self.tree_view.get_leaf_node_id(coloring, num_colors, num_nodes)  
             except Exception:
                 leaf_node_id = None
             self.tree_view.mark_coloring_viable(coloring, k=max(1, self._colors_spin.value()), depth=self.graph_scene.node_count)
